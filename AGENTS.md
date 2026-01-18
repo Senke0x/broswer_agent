@@ -12,6 +12,8 @@ description, and file path so you can open the source for full instructions.
   - Path: /Users/chaisenpeng/.codex/skills/.system/skill-installer/SKILL.md
 
 ### Project Skills
+- codex-review: Automated code review using Codex CLI with intelligent fallback to project skills. Use when reviewing code changes, commits, or pull requests.
+  - Path: /Users/chaisenpeng/Document/Github/broswer_agent/.claude/skills/codex-review/SKILL.md
 - vercel-react-best-practices: React and Next.js performance optimization guidelines from Vercel Engineering. Use when writing, reviewing, or refactoring React/Next.js code to ensure optimal performance patterns.
   - Path: /Users/chaisenpeng/Document/Github/broswer_agent/.claude/skills/vercel-react-best-practices/SKILL.md
 - web-design-guidelines: Review UI code for Web Interface Guidelines compliance. Use when asked to review UI, check accessibility, audit design, or check site against best practices.

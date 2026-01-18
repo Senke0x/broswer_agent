@@ -40,8 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# agent configs (keep only .claude/)
-.codex/
+# agent configs (ignore only cursor and windsurf)
 .cursor/
-.gemini/
 .windsurf/
