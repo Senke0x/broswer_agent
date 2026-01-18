@@ -390,10 +390,10 @@ interface EvalResult {
 - [ ] Add message rendering (user/assistant/system)
 
 ### Phase 2: LLM Integration
-- [ ] Implement LLM planner (slot filling + tool calls)
-- [ ] Add function calling schemas
-- [ ] Add holiday/relative date inference + confirmation prompts
-- [ ] Implement review summarization
+- [x] Implement LLM planner (slot filling + tool calls)
+- [x] Add function calling schemas
+- [x] Add holiday/relative date inference + confirmation prompts
+- [x] Implement review summarization
 
 ### Phase 3: MCP & Scraping
 - [ ] Implement MCP adapter interface
@@ -470,15 +470,46 @@ interface EvalResult {
   - Removed unused variables
 - [x] Build verification: All TypeScript checks passed
 
+#### Phase 2: LLM Integration (Complete)
+- [x] Create LLM function schemas:
+  - `src/lib/llm/schemas.ts` - collectSearchParams, searchAirbnb, summarizeListings
+  - OpenAI function calling schemas with proper parameter validation
+  - Support for slot filling, clarification questions, and search execution
+- [x] Implement LLM planner:
+  - `src/lib/llm/planner.ts` - Intent parsing and slot filling logic
+  - Handles collectSearchParams and searchAirbnb function calls
+  - Returns structured PlanResult with action type and parameters
+  - Validates required fields (location, checkIn, checkOut)
+  - Generates clarification questions for missing information
+- [x] Implement review summarizer:
+  - `src/lib/llm/summarizer.ts` - Review summarization using OpenAI
+  - Summarizes up to 15 reviews into 2-3 sentences
+  - Focuses on common themes, pros, and cons
+- [x] Create OpenAI client utility:
+  - `src/lib/llm/client.ts` - Shared OpenAI client with lazy initialization
+  - Prevents build-time initialization errors
+  - Exports DEFAULT_MODEL (gpt-4o) and DEFAULT_TEMPERATURE
+- [x] Update API route:
+  - `src/app/api/chat/route.ts` - Integrated LLM planner
+  - Streams clarification questions or search parameters
+  - Placeholder for Phase 3 MCP integration
+- [x] Bug fixes:
+  - Fixed OpenAI tool call type errors with type guards
+  - Implemented lazy initialization pattern for API clients
+  - Resolved build-time vs runtime initialization issues
+- [x] Build verification: All TypeScript checks passed
+
 ### 📋 Next Steps
 
 1. ✅ ~~Complete Phase 1: Foundation~~ (DONE)
-2. **Begin Phase 2: LLM Integration**
-   - Implement LLM planner (slot filling + tool calls)
-   - Add function calling schemas
-   - Add holiday/relative date inference + confirmation prompts
-   - Implement review summarization
-3. Implement Phase 3: MCP & Scraping
+2. ✅ ~~Complete Phase 2: LLM Integration~~ (DONE)
+3. **Begin Phase 3: MCP & Scraping**
+   - Implement MCP adapter interface
+   - Implement Playwright adapter
+   - Implement Browserbase adapter
+   - Add Airbnb scraping logic with configurable selectors
+   - Add detail-page review extraction (>= 10 reviews)
+   - Implement retry and failover logic
 4. Add Phase 4: Post-processing & Evaluation
 5. Polish Phase 5: Final touches
 

@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 import { SSEEncoder } from '@/lib/chat/sse-encoder';
+import { planNextAction } from '@/lib/llm/planner';
+import { ChatMessage } from '@/types/chat';
 
 export const runtime = 'edge';
 
@@ -15,27 +17,53 @@ export async function GET(request: NextRequest) {
   // Store message as non-null string for use in generator
   const userMessage: string = message;
 
-  // TODO: Phase 2 - Parse and use history for context
-  // const history = historyStr ? JSON.parse(historyStr) : [];
+  // Parse conversation history
+  let history: ChatMessage[] = [];
+  try {
+    history = historyStr ? JSON.parse(historyStr) : [];
+  } catch (error) {
+    console.error('Failed to parse history:', error);
+    // Continue with empty history if parsing fails
+  }
 
   // Create SSE encoder
   const encoder = new SSEEncoder();
 
   // Create async generator for streaming response
   async function* generateResponse(): AsyncGenerator<string> {
-    // TODO: Phase 2 - Integrate with OpenAI LLM
-    // For now, return a placeholder response
+    try {
+      // Call LLM planner to determine next action
+      const planResult = await planNextAction(userMessage, history);
 
-    yield 'I received your message: "';
-    yield userMessage;
-    yield '". ';
+      if (planResult.action === 'ask_clarification') {
+        // Stream clarification question to user
+        const message = planResult.message || 'Could you provide more details?';
+        yield message;
+      } else if (planResult.action === 'execute_search') {
+        // TODO: Phase 3 - Execute MCP search
+        // For now, show what parameters were collected
+        yield 'Great! I have all the information I need:\n\n';
 
-    yield '\n\nThis is a placeholder response. ';
-    yield 'In Phase 2, I will integrate with OpenAI to:\n';
-    yield '1. Parse your search intent\n';
-    yield '2. Extract location, dates, and preferences\n';
-    yield '3. Execute Airbnb search via MCP\n';
-    yield '4. Return formatted results\n';
+        const params = planResult.searchParams;
+        if (params) {
+          yield `📍 Location: ${params.location}\n`;
+          yield `📅 Check-in: ${params.checkIn}\n`;
+          yield `📅 Check-out: ${params.checkOut}\n`;
+          yield `👥 Guests: ${params.guests || 2}\n`;
+
+          if (params.budgetMax) {
+            yield `💰 Budget: ${params.budgetMin || 0} - ${params.budgetMax} ${params.currency || 'USD'}\n`;
+          }
+
+          yield '\n🔍 Search functionality will be implemented in Phase 3 (MCP Integration).\n';
+        }
+      } else if (planResult.action === 'error') {
+        yield planResult.message || 'Sorry, I encountered an error processing your request.';
+      }
+    } catch (error) {
+      console.error('Error in generateResponse:', error);
+      yield 'Sorry, I encountered an error processing your request. Please try again.';
+    }
   }
 
   // Create and return SSE stream
