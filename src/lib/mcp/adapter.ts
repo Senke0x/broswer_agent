@@ -38,8 +38,8 @@ export function getDefaultMCPConfig(): MCPConfig {
     },
     playwright: {
       port: 3001,
-      browser: 'chromium',
-      headless: true,
+      browser: (process.env.MCP_BROWSER || 'chromium') as 'chromium' | 'firefox' | 'webkit',
+      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false', // Default true, set to false to show browser
       timeout: 30000,
     },
   };

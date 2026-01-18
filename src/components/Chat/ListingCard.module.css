@@ -3,11 +3,14 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  padding: 0;
 }
 
 .listingCard:hover {
-  transform: translateY(-2px);
+  transform: translateY(-4px);
   border-color: var(--color-primary);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
 }
 
 .link {
@@ -18,73 +21,103 @@
   text-decoration: none;
 }
 
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-sm);
+/* Image Section */
+.imageWrapper {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
 }
 
-.title {
-  font-size: var(--font-size-lg);
+.image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.listingCard:hover .image {
+  transform: scale(1.05);
+}
+
+.ratingBadge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-text);
-  line-height: 1.3;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Content Section */
+.content {
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
   flex: 1;
 }
 
-.rating {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  font-size: var(--font-size-sm);
+.title {
+  font-size: var(--font-size-base);
   font-weight: 600;
-  white-space: nowrap;
-  background: rgba(0,0,0,0.05);
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.reviewCount {
-  color: var(--color-text-secondary);
-  font-weight: 400;
-}
-
-.price {
-  margin-bottom: var(--spacing-md);
-}
-
-.priceAmount {
-  font-size: var(--font-size-xl);
-  font-weight: 800;
-  color: var(--color-text); /* Keep text color for price, maybe primary looks too like a link */
+  color: var(--color-text);
+  line-height: 1.4;
+  margin-bottom: var(--spacing-xs);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .listingCard:hover .title {
   color: var(--color-primary);
 }
 
+.priceRow {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: var(--spacing-sm);
+}
+
+.priceAmount {
+  font-size: var(--font-size-lg);
+  font-weight: 800;
+  color: var(--color-text);
+}
+
 .priceLabel {
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
+}
+
+.reviewCount {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: 400;
 }
 
 .summary {
   margin-top: auto;
   padding: var(--spacing-sm);
-  background: rgba(0,0,0,0.03);
+  background: linear-gradient(135deg, rgba(var(--color-primary-rgb, 79, 70, 229), 0.05) 0%, rgba(var(--color-primary-rgb, 79, 70, 229), 0.02) 100%);
   border-radius: var(--radius-sm);
-  border-left: 3px solid var(--color-border);
+  border-left: 3px solid var(--color-primary);
 }
 
 .summaryText {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
-  line-height: 1.5;
-  font-style: italic;
+  line-height: 1.6;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

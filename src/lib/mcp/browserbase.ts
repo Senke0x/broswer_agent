@@ -167,7 +167,8 @@ export class BrowserbaseAdapter implements MCPAdapter {
             rating: toNumberValue(record.rating),
             reviewCount: toIntegerValue(record.reviewCount),
             reviewSummary: null,
-            url: typeof record.url === 'string' ? record.url : ''
+            url: typeof record.url === 'string' ? record.url : '',
+            imageUrl: null // Image will be fetched from detail page
           });
         }
       }

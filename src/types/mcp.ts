@@ -23,6 +23,9 @@ export interface MCPAdapter {
 
   // Batch get details (internal concurrency control)
   getMultipleListingDetails(urls: string[]): Promise<ListingDetail[]>;
+
+  // Screenshot (optional, Playwright only)
+  takeScreenshot?(): Promise<string | null>;
 }
 
 export interface MCPConfig {

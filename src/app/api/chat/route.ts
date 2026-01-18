@@ -121,6 +121,8 @@ export async function GET(request: NextRequest) {
           sendStatus('Clarification needed');
           const message = planResult.message || 'Could you provide more details?';
           send(message);
+          // Send completion signal before closing
+          controller.enqueue(encoder.encodeComplete());
           controller.close();
           return;
         }
@@ -129,6 +131,8 @@ export async function GET(request: NextRequest) {
           const normalizedParams = normalizeSearchParams(planResult.searchParams);
           if (!normalizedParams) {
             send('I still need the location, check-in date, and check-out date to continue.');
+            // Send completion signal before closing
+            controller.enqueue(encoder.encodeComplete());
             controller.close();
             return;
           }
@@ -145,8 +149,17 @@ export async function GET(request: NextRequest) {
           sendStatus(`Planning search in ${normalizedParams.location}...`);
           send(`Searching Airbnb listings using ${mode}...\n`);
 
+          // Screenshot callback to send screenshots via SSE
+          const onScreenshot = (screenshot: string) => {
+            send({
+              type: 'event',
+              event: 'browser-screenshot',
+              data: screenshot, // Base64 encoded image
+            });
+          };
+
           const searchStart = Date.now();
-          const searchOutput = await runSearchPipeline(normalizedParams, mode, sendStatus, model);
+          const searchOutput = await runSearchPipeline(normalizedParams, mode, sendStatus, model, onScreenshot);
           const searchDuration = Date.now() - searchStart;
 
           if (searchOutput.comparison) {
@@ -183,6 +196,8 @@ export async function GET(request: NextRequest) {
 
           // Clear status at the end
           sendStatus('');
+          // Send completion signal before closing
+          controller.enqueue(encoder.encodeComplete());
           controller.close();
           return;
         }
@@ -190,6 +205,8 @@ export async function GET(request: NextRequest) {
         if (planResult.action === 'error') {
           send(planResult.message || 'Sorry, I encountered an error processing your request.');
           sendStatus('');
+          // Send completion signal before closing
+          controller.enqueue(encoder.encodeComplete());
           controller.close();
           return;
         }
@@ -200,6 +217,12 @@ export async function GET(request: NextRequest) {
         const errorMessage = getErrorMessage(error);
         send(errorMessage);
         sendStatus('');
+        // Send completion signal before closing, even on error
+        try {
+          controller.enqueue(encoder.encodeComplete());
+        } catch (e) {
+          // Ignore if stream is already closed
+        }
         controller.close();
       } finally {
         logger.clearTraceId();
@@ -244,7 +267,8 @@ async function runSearchPipeline(
   params: SearchParams,
   mode: MCPMode,
   onStatus?: (status: string) => void,
-  model?: string
+  model?: string,
+  onScreenshot?: (screenshot: string) => void
 ): Promise<SearchOutput> {
   const config = getDefaultMCPConfig();
   let resolvedMode = mode;
@@ -278,7 +302,7 @@ async function runSearchPipeline(
   if (resolvedMode === 'both') {
     onStatus?.('Initializing parallel search (Playwright + Browserbase)...');
     const adapters = createMCPAdapter('both', config) as MCPAdapter[];
-    const results = await Promise.all(adapters.map(adapter => runAdapterSearch(adapter, params, onStatus, model)));
+    const results = await Promise.all(adapters.map(adapter => runAdapterSearch(adapter, params, onStatus, model, onScreenshot)));
     const resultsByName = toResultsByAdapter(adapters, results);
 
     onStatus?.('Processing and comparing results...');
@@ -334,7 +358,7 @@ async function runSearchPipeline(
   }
 
   const primaryAdapter = createMCPAdapter(resolvedMode, config) as MCPAdapter;
-  let primaryResult = await runAdapterSearch(primaryAdapter, params, onStatus, model);
+  let primaryResult = await runAdapterSearch(primaryAdapter, params, onStatus, model, onScreenshot);
   let finalMode = resolvedMode;
 
   if (shouldFallback(primaryResult)) {
@@ -345,7 +369,7 @@ async function runSearchPipeline(
       try {
         validateMCPConfig('browserbase', config);
         const fallbackAdapter = createMCPAdapter('browserbase', config) as MCPAdapter;
-        const fallbackResult = await runAdapterSearch(fallbackAdapter, params, onStatus, model);
+        const fallbackResult = await runAdapterSearch(fallbackAdapter, params, onStatus, model, onScreenshot);
         if (!shouldFallback(fallbackResult)) {
           primaryResult = fallbackResult;
           finalMode = 'browserbase';
@@ -358,7 +382,7 @@ async function runSearchPipeline(
       }
     } else {
       const fallbackAdapter = createMCPAdapter('playwright', config) as MCPAdapter;
-      const fallbackResult = await runAdapterSearch(fallbackAdapter, params, onStatus);
+      const fallbackResult = await runAdapterSearch(fallbackAdapter, params, onStatus, model, onScreenshot);
       if (!shouldFallback(fallbackResult)) {
         primaryResult = fallbackResult;
         finalMode = 'playwright';
@@ -396,7 +420,8 @@ async function runAdapterSearch(
   adapter: MCPAdapter,
   params: SearchParams,
   onStatus?: (status: string) => void,
-  model?: string
+  model?: string,
+  onScreenshot?: (screenshot: string) => void
 ): Promise<MCPExecutionResult> {
   const start = Date.now();
   const errors: string[] = [];
@@ -423,11 +448,63 @@ async function runAdapterSearch(
 
   try {
     onStatus?.(`Searching Airbnb on ${adapter.name}...`);
-    listings = await withRetry(
-      () => adapter.searchAirbnb(params),
-      2,
-      APP_CONFIG.retry.intervalMs
-    );
+
+    // If adapter supports screenshots and we have a callback, take screenshots
+    if (adapter.takeScreenshot && onScreenshot) {
+      // Create a wrapper to capture screenshots during search
+      const searchWithScreenshots = async () => {
+        const searchPromise = adapter.searchAirbnb(params);
+
+        // Take initial screenshot after navigation
+        setTimeout(async () => {
+          try {
+            const screenshot = await adapter.takeScreenshot?.();
+            if (screenshot) {
+              onScreenshot(screenshot);
+            }
+          } catch (err) {
+            // Ignore screenshot errors
+          }
+        }, 3000);
+
+        // Take screenshot after page load
+        setTimeout(async () => {
+          try {
+            const screenshot = await adapter.takeScreenshot?.();
+            if (screenshot) {
+              onScreenshot(screenshot);
+            }
+          } catch (err) {
+            // Ignore screenshot errors
+          }
+        }, 5000);
+
+        return await searchPromise;
+      };
+
+      listings = await withRetry(
+        searchWithScreenshots,
+        2,
+        APP_CONFIG.retry.intervalMs
+      );
+
+      // Final screenshot after search completes
+      try {
+        const screenshot = await adapter.takeScreenshot?.();
+        if (screenshot && onScreenshot) {
+          onScreenshot(screenshot);
+        }
+      } catch (err) {
+        // Ignore screenshot errors
+      }
+    } else {
+      listings = await withRetry(
+        () => adapter.searchAirbnb(params),
+        2,
+        APP_CONFIG.retry.intervalMs
+      );
+    }
+
     timeToFirstResult = Date.now() - start;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -536,6 +613,9 @@ function mergeListingDetails(
   const detail = detailsByUrl.get(listing.url);
   if (!detail) return listing;
 
+  // Prefer detail page image over search result image (detail page has higher quality)
+  const imageUrl = detail.imageUrl || listing.imageUrl;
+
   return {
     ...listing,
     title: detail.title || listing.title,
@@ -545,6 +625,7 @@ function mergeListingDetails(
     reviewCount: detail.reviewCount ?? listing.reviewCount,
     reviewSummary: summaries.get(detail.url) ?? listing.reviewSummary,
     url: listing.url || detail.url,
+    imageUrl, // Use detail page image (higher quality) if available
   };
 }
 

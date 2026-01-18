@@ -18,6 +18,7 @@ export interface Listing {
   reviewCount: number | null;
   reviewSummary: string | null;
   url: string;
+  imageUrl?: string | null; // Primary listing image
 }
 
 export interface Review {

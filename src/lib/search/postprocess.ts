@@ -36,6 +36,11 @@ export function postProcessListings(
     const hasMaxBudget = budgetMaxValue !== null;
     const budgetMax = budgetMaxValue ?? Number.POSITIVE_INFINITY;
 
+    // Calculate target budget (middle point if both min and max, otherwise use max or min)
+    const targetBudget = hasMaxBudget
+      ? (budgetMin > 0 ? (budgetMin + budgetMax) / 2 : budgetMax)
+      : budgetMin;
+
     let filtered = valid.filter(listing =>
       listing.pricePerNight >= budgetMin && listing.pricePerNight <= budgetMax
     );
@@ -57,7 +62,8 @@ export function postProcessListings(
       }
     }
 
-    const sorted = sortByPriceDesc(filtered);
+    // Sort by closeness to target budget (closest first)
+    const sorted = sortByClosestToBudget(filtered, targetBudget);
     const selected = sorted.slice(0, maxResults);
 
     if (selected.length < maxResults) {
@@ -65,54 +71,22 @@ export function postProcessListings(
     }
 
     return {
-      listings: sortByPriceDesc(selected).slice(0, maxResults),
+      listings: selected.slice(0, maxResults),
       context,
       notes,
     };
   }
 
+  // No budget specified - just return top listings by price (high to low)
   const sorted = sortByPriceDesc(valid);
-  const selected: Listing[] = [];
-  const used = new Set<string>();
-
-  const pushUnique = (listing: Listing) => {
-    const key = listingKey(listing);
-    if (used.has(key)) return;
-    used.add(key);
-    selected.push(listing);
-  };
-
-  const highCount = Math.min(APP_CONFIG.search.highPriceCount, sorted.length);
-  for (let i = 0; i < highCount; i += 1) {
-    pushUnique(sorted[i]);
-  }
-
-  const remaining = sorted.slice(highCount);
-  if (remaining.length > 0) {
-    const midStart = Math.max(
-      0,
-      Math.floor((remaining.length - APP_CONFIG.search.midPriceCount) / 2)
-    );
-    const midSlice = remaining.slice(
-      midStart,
-      midStart + APP_CONFIG.search.midPriceCount
-    );
-    midSlice.forEach(pushUnique);
-  }
-
-  if (selected.length < maxResults) {
-    for (const listing of sorted) {
-      if (selected.length >= maxResults) break;
-      pushUnique(listing);
-    }
-  }
+  const selected = sorted.slice(0, maxResults);
 
   if (selected.length < maxResults) {
     selected.push(...invalid.slice(0, maxResults - selected.length));
   }
 
   return {
-    listings: sortByPriceDesc(selected).slice(0, maxResults),
+    listings: selected.slice(0, maxResults),
     context,
     notes,
   };
@@ -141,4 +115,16 @@ function listingKey(listing: Listing): string {
 
 function sortByPriceDesc(listings: Listing[]): Listing[] {
   return [...listings].sort((a, b) => b.pricePerNight - a.pricePerNight);
+}
+
+/**
+ * Sort listings by how close their price is to the target budget
+ * Listings closest to the budget come first
+ */
+function sortByClosestToBudget(listings: Listing[], targetBudget: number): Listing[] {
+  return [...listings].sort((a, b) => {
+    const diffA = Math.abs(a.pricePerNight - targetBudget);
+    const diffB = Math.abs(b.pricePerNight - targetBudget);
+    return diffA - diffB;
+  });
 }
