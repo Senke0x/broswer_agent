@@ -79,6 +79,7 @@ server logs for now (no persistence).
   - assistant questions
   - user replies
   - search results cards
+- MCP mode selector (Playwright / Browserbase / A/B evaluation).
 
 ### Backend (T3 / tRPC or API Routes)
 - Chat orchestration endpoint (e.g., `/api/chat` or tRPC `chat.run`).
@@ -404,15 +405,15 @@ interface EvalResult {
 - [x] Implement retry and failover logic
 
 ### Phase 4: Post-processing & Evaluation
-- [ ] Add result post-processing (filter/balance/sort)
-- [ ] Add eval harness for A/B comparison
-- [ ] Add user-visible A/B comparison view
-- [ ] Add structured logging
+- [x] Add result post-processing (filter/balance/sort)
+- [x] Add eval harness for A/B comparison
+- [x] Add user-visible A/B comparison view
+- [x] Add structured logging
 
 ### Phase 5: Polish
-- [ ] Add loading states and skeleton UI
-- [ ] Add error handling and user-friendly messages
-- [ ] Add rate limiting
+- [x] Add loading states and skeleton UI
+- [x] Add error handling and user-friendly messages
+- [x] Add rate limiting
 - [ ] Deploy to Vercel
 
 ---
@@ -523,17 +524,26 @@ interface EvalResult {
   - Implements getListingDetails with review extraction
 - [x] Build verification: All TypeScript checks passed
 
+#### Phase 4: Post-processing & Evaluation (Complete)
+- [x] Post-processing pipeline (dedupe, budget filter, price sorting)
+- [x] Eval harness for A/B comparison (metrics + winner selection)
+- [x] User-visible comparison UI + mode selector
+- [x] Structured logging for eval results
+
+#### Phase 5: Polish (In Progress)
+- [x] Loading states and skeleton UI
+- [x] Error handling with user-friendly messages
+- [x] Rate limiting (10 req/min)
+- [ ] Deploy to Vercel
+
 ### 📋 Next Steps
 
 1. ✅ ~~Complete Phase 1: Foundation~~ (DONE)
 2. ✅ ~~Complete Phase 2: LLM Integration~~ (DONE)
 3. ✅ ~~Complete Phase 3: MCP & Scraping~~ (DONE)
-4. **Begin Phase 4: Post-processing & Evaluation**
-   - Add result post-processing (filter/balance/sort)
-   - Add eval harness for A/B comparison
-   - Add user-visible A/B comparison view
-   - Add structured logging
-5. Polish Phase 5: Final touches
+4. ✅ ~~Complete Phase 4: Post-processing & Evaluation~~ (DONE)
+5. **Finish Phase 5: Polish**
+   - Deploy to Vercel
 
 ### 📦 MCP Packages Confirmed
 

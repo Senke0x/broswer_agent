@@ -65,7 +65,7 @@ export function postProcessListings(
     }
 
     return {
-      listings: selected,
+      listings: sortByPriceDesc(selected).slice(0, maxResults),
       context,
       notes,
     };
@@ -112,7 +112,7 @@ export function postProcessListings(
   }
 
   return {
-    listings: selected.slice(0, maxResults),
+    listings: sortByPriceDesc(selected).slice(0, maxResults),
     context,
     notes,
   };

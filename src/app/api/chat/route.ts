@@ -30,16 +30,34 @@ export async function GET(request: NextRequest) {
     return new Response('Message is required', { status: 400 });
   }
 
+  const encoder = new SSEEncoder();
+  const streamHeaders = {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  };
+
   const clientId = getClientId(request);
   const rateLimitResult = checkRateLimit(clientId);
   if (!rateLimitResult.allowed) {
+    const errorMessage = 'Rate limit exceeded. Please wait a minute and try again.';
     logger.warn('api', 'rate_limit_blocked', {
       clientId,
       retryAfter: rateLimitResult.retryAfter,
     });
-    return new Response('Rate limit exceeded. Please wait a minute and try again.', {
-      status: 429,
+    const stream = encoder.createStream(async function* () {
+      yield {
+        type: 'event',
+        event: 'server-error',
+        data: JSON.stringify({
+          error: errorMessage,
+          retryAfter: rateLimitResult.retryAfter,
+        }),
+      };
+    }());
+    return new Response(stream, {
       headers: {
+        ...streamHeaders,
         'Retry-After': String(rateLimitResult.retryAfter ?? 60),
       },
     });
@@ -55,7 +73,6 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const encoder = new SSEEncoder();
   const traceId = randomUUID();
 
   async function* generateResponse(): AsyncGenerator<SSEChunk> {
@@ -150,13 +167,7 @@ export async function GET(request: NextRequest) {
 
   const stream = encoder.createStream(generateResponse());
 
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-    },
-  });
+  return new Response(stream, { headers: streamHeaders });
 }
 
 interface SearchOutput {
@@ -239,6 +250,21 @@ async function runSearchPipeline(
     const evalResult = buildEvalResult(params, {
       playwright: resultsByName.playwright,
       browserbase: resultsByName.browserbase,
+    });
+    logger.info('api', 'eval_result', {
+      sessionId: evalResult.sessionId,
+      winner: evalResult.comparison.winner,
+      completenessScore: evalResult.comparison.completenessScore,
+      accuracyScore: evalResult.comparison.accuracyScore,
+      speedScore: evalResult.comparison.speedScore,
+      resultCounts: {
+        playwright: resultsByName.playwright?.listings.length ?? 0,
+        browserbase: resultsByName.browserbase?.listings.length ?? 0,
+      },
+      errorCounts: {
+        playwright: resultsByName.playwright?.errors.length ?? 0,
+        browserbase: resultsByName.browserbase?.errors.length ?? 0,
+      },
     });
 
     const comparison: NonNullable<SearchOutput['comparison']> = {
