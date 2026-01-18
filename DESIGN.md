@@ -396,12 +396,12 @@ interface EvalResult {
 - [x] Implement review summarization
 
 ### Phase 3: MCP & Scraping
-- [ ] Implement MCP adapter interface
-- [ ] Implement Playwright adapter
-- [ ] Implement Browserbase adapter
-- [ ] Add Airbnb scraping logic with configurable selectors
-- [ ] Add detail-page review extraction (>= 10 reviews)
-- [ ] Implement retry and failover logic
+- [x] Implement MCP adapter interface
+- [x] Implement Playwright adapter
+- [x] Implement Browserbase adapter
+- [x] Add Airbnb scraping logic with configurable selectors
+- [x] Add detail-page review extraction (>= 10 reviews)
+- [x] Implement retry and failover logic
 
 ### Phase 4: Post-processing & Evaluation
 - [ ] Add result post-processing (filter/balance/sort)
@@ -499,18 +499,40 @@ interface EvalResult {
   - Resolved build-time vs runtime initialization issues
 - [x] Build verification: All TypeScript checks passed
 
+#### Phase 3: MCP & Scraping (Complete)
+- [x] Create MCP adapter interface and types:
+  - `src/types/mcp.ts` - MCPAdapter interface, MCPConfig, tool types
+  - Defined common interface for both Browserbase and Playwright adapters
+- [x] Create base adapter class:
+  - `src/lib/mcp/base.ts` - BaseMCPAdapter with common functionality
+  - Implements retry logic with exponential backoff
+  - Batch processing with concurrency control (max 3)
+  - Random delays to avoid rate limiting
+- [x] Create selector configuration:
+  - `src/config/selectors.json` - Airbnb CSS selectors
+  - Primary and fallback selectors for search and detail pages
+- [x] Implement Browserbase adapter:
+  - `src/lib/mcp/browserbase.ts` - Full MCP integration
+  - Uses @modelcontextprotocol/sdk for MCP client
+  - Implements searchAirbnb with navigation and extraction
+  - Implements getListingDetails with review extraction (up to 15 reviews)
+- [x] Implement Playwright adapter:
+  - `src/lib/mcp/playwright.ts` - Full MCP integration
+  - Uses @modelcontextprotocol/sdk for MCP client
+  - Implements searchAirbnb with DOM evaluation
+  - Implements getListingDetails with review extraction
+- [x] Build verification: All TypeScript checks passed
+
 ### 📋 Next Steps
 
 1. ✅ ~~Complete Phase 1: Foundation~~ (DONE)
 2. ✅ ~~Complete Phase 2: LLM Integration~~ (DONE)
-3. **Begin Phase 3: MCP & Scraping**
-   - Implement MCP adapter interface
-   - Implement Playwright adapter
-   - Implement Browserbase adapter
-   - Add Airbnb scraping logic with configurable selectors
-   - Add detail-page review extraction (>= 10 reviews)
-   - Implement retry and failover logic
-4. Add Phase 4: Post-processing & Evaluation
+3. ✅ ~~Complete Phase 3: MCP & Scraping~~ (DONE)
+4. **Begin Phase 4: Post-processing & Evaluation**
+   - Add result post-processing (filter/balance/sort)
+   - Add eval harness for A/B comparison
+   - Add user-visible A/B comparison view
+   - Add structured logging
 5. Polish Phase 5: Final touches
 
 ### 📦 MCP Packages Confirmed

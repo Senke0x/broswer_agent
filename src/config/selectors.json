@@ -1,0 +1,64 @@
+{
+  "search": {
+    "listingCard": {
+      "primary": "[data-testid='card-container']",
+      "fallback": "[itemprop='itemListElement']"
+    },
+    "title": {
+      "primary": "[data-testid='listing-card-title']",
+      "fallback": "[itemprop='name']"
+    },
+    "price": {
+      "primary": "[data-testid='price-availability-row']",
+      "fallback": "._1jo4hgw"
+    },
+    "rating": {
+      "primary": "[aria-label*='rating']",
+      "fallback": "._10fy1f8"
+    },
+    "reviewCount": {
+      "primary": "[aria-label*='reviews']",
+      "fallback": "._1s2vbxd"
+    },
+    "url": {
+      "primary": "a[href*='/rooms/']",
+      "fallback": "a[data-testid='listing-card-link']"
+    }
+  },
+  "detail": {
+    "title": {
+      "primary": "h1[data-section-id='TITLE_DEFAULT']",
+      "fallback": "h1._fecoyn4"
+    },
+    "pricePerNight": {
+      "primary": "[data-section-id='BOOK_IT_SIDEBAR'] ._1k4xcdh",
+      "fallback": "._tyxjp1"
+    },
+    "rating": {
+      "primary": "[aria-label*='rating']",
+      "fallback": "._1s2vbxd"
+    },
+    "reviewCount": {
+      "primary": "button[aria-label*='reviews']",
+      "fallback": "._1s2vbxd"
+    },
+    "reviews": {
+      "container": {
+        "primary": "[data-review-id]",
+        "fallback": "._1f1oir5"
+      },
+      "text": {
+        "primary": "[data-testid='review-text']",
+        "fallback": "._1kjy4z4"
+      },
+      "author": {
+        "primary": "[data-testid='review-author']",
+        "fallback": "._1f5kw1i"
+      },
+      "date": {
+        "primary": "[data-testid='review-date']",
+        "fallback": "._1h5uiygl"
+      }
+    }
+  }
+}
