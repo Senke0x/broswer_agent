@@ -421,7 +421,7 @@ interface EvalResult {
 
 ### ✅ Completed
 
-#### Phase 1: Foundation (Partial)
+#### Phase 1: Foundation (Complete)
 - [x] Initialize Next.js project with TypeScript
 - [x] Install dependencies: openai, zod, uuid, @modelcontextprotocol/sdk
 - [x] Create type definitions:
@@ -434,30 +434,50 @@ interface EvalResult {
   - `src/lib/errors/handler.ts` - Error handling utilities
   - `src/lib/utils/logger.ts` - Structured logging
   - `src/config/constants.ts` - App configuration
-- [x] Create base UI components:
+- [x] Create UI components:
   - `src/app/globals.css` - Design system and CSS variables
   - `src/components/ui/Skeleton.tsx` - Loading skeleton with animation
   - `src/components/ui/Button.tsx` - Reusable button component
+  - `src/components/ui/Card.tsx` - Card container component
+- [x] Create Chat components:
+  - `src/components/Chat/InputBar.tsx` - Chat input with send button
+  - `src/components/Chat/MessageBubble.tsx` - Message bubble component
+  - `src/components/Chat/ListingCard.tsx` - Listing card for search results
+  - `src/components/Chat/MessageList.tsx` - Message list with auto-scroll
+  - `src/components/Chat/ChatContainer.tsx` - Main chat container
+- [x] Create hooks:
+  - `src/hooks/useSSE.ts` - SSE connection hook with cleanup
+  - `src/hooks/useChat.ts` - Chat state management with streaming
+- [x] Create utilities:
+  - `src/lib/chat/sse-encoder.ts` - SSE response encoder
+- [x] Create API routes:
+  - `src/app/api/chat/route.ts` - SSE streaming endpoint (placeholder)
+- [x] Update app structure:
+  - `src/app/page.tsx` - Main chat page with ChatContainer
+  - `src/app/layout.tsx` - Root layout with app metadata
 
-### 🚧 In Progress
-
-#### Phase 1: Foundation (Remaining)
-- [ ] `src/components/ui/Card.tsx` - Card container component
-- [ ] `src/components/Chat/InputBar.tsx` - Chat input with send button
-- [ ] `src/components/Chat/MessageBubble.tsx` - Message bubble component
-- [ ] `src/components/Chat/MessageList.tsx` - Message list with scroll
-- [ ] `src/components/Chat/ChatContainer.tsx` - Main chat container
-- [ ] `src/hooks/useChat.ts` - Chat state management
-- [ ] `src/hooks/useSSE.ts` - SSE connection hook
-- [ ] `src/lib/chat/sse-encoder.ts` - SSE response encoder
-- [ ] `src/app/page.tsx` - Main chat page
-- [ ] `src/app/layout.tsx` - Root layout
-- [ ] `src/app/api/chat/route.ts` - SSE streaming endpoint (skeleton)
+#### Code Quality & Optimization
+- [x] Vercel React Best Practices Review:
+  - Fixed array index keys (use stable listing.url)
+  - Fixed stale closures in useChat hook
+  - Fixed mutation outside React state
+  - Added React.memo to MessageList
+  - Optimized useEffect dependencies
+- [x] Bug Fixes (Codex Review):
+  - Fixed EventSource memory leak (cleanup function not called)
+  - Fixed stale ref after connection close
+  - Added cleanup on component unmount
+  - Removed unused variables
+- [x] Build verification: All TypeScript checks passed
 
 ### 📋 Next Steps
 
-1. Complete Phase 1 remaining components
-2. Begin Phase 2: LLM Integration
+1. ✅ ~~Complete Phase 1: Foundation~~ (DONE)
+2. **Begin Phase 2: LLM Integration**
+   - Implement LLM planner (slot filling + tool calls)
+   - Add function calling schemas
+   - Add holiday/relative date inference + confirmation prompts
+   - Implement review summarization
 3. Implement Phase 3: MCP & Scraping
 4. Add Phase 4: Post-processing & Evaluation
 5. Polish Phase 5: Final touches

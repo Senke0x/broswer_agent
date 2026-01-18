@@ -31,9 +31,7 @@ export class PlaywrightAdapter implements MCPAdapter {
       this.transport = new StdioClientTransport({
         command: 'npx',
         args: ['-y', '@modelcontextprotocol/server-playwright'],
-        env: {
-          ...process.env,
-        },
+        env: process.env as Record<string, string>,
       });
 
       // Create MCP client

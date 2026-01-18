@@ -1,0 +1,58 @@
+.chatContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: 1200px;
+  margin: 0 auto;
+  background-color: var(--color-background);
+}
+
+.header {
+  padding: var(--spacing-lg) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-background);
+}
+
+.title {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: var(--spacing-xs);
+}
+
+.subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.chatArea {
+  flex: 1;
+  overflow-y: auto;
+  background-color: var(--color-surface);
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--spacing-xl);
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.example {
+  margin-top: var(--spacing-md);
+  font-style: italic;
+  color: var(--color-text-secondary);
+  opacity: 0.8;
+}
+
+.error {
+  padding: var(--spacing-md);
+  background-color: #fee;
+  color: var(--color-error);
+  border-top: 1px solid var(--color-error);
+  text-align: center;
+}
