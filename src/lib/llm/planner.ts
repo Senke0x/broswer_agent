@@ -1,9 +1,9 @@
 // LLM Planner for slot filling and intent parsing
 
-import { ChatMessage } from '@/types/chat';
+import { ChatMessage, ToolCall } from '@/types/chat';
 import { SearchParams } from '@/types/listing';
 import { collectSearchParamsSchema, searchAirbnbSchema } from './schemas';
-import { getOpenAIClient, DEFAULT_MODEL } from './client';
+import { getOpenAIClient, DEFAULT_MODEL, ensureOpenAIReady } from './client';
 import OpenAI from 'openai';
 
 /**
@@ -14,6 +14,7 @@ export interface PlanResult {
   message?: string;
   searchParams?: Partial<SearchParams>;
   missingFields?: string[];
+  toolCall?: ToolCall;
 }
 
 type SearchParamsPayload = Partial<SearchParams> & {
@@ -43,7 +44,8 @@ IMPORTANT:
  */
 export async function planNextAction(
   userMessage: string,
-  history: ChatMessage[]
+  history: ChatMessage[],
+  model?: string
 ): Promise<PlanResult> {
   try {
     // Build conversation context for OpenAI
@@ -57,42 +59,86 @@ export async function planNextAction(
     ];
 
     // Call OpenAI with function calling
+    await ensureOpenAIReady();
     const openai = getOpenAIClient();
-    const response = await openai.chat.completions.create({
-      model: DEFAULT_MODEL,
-      messages,
-      tools: [collectSearchParamsSchema, searchAirbnbSchema],
-      tool_choice: 'auto',
-      temperature: 0.7,
+    const selectedModel = model || DEFAULT_MODEL;
+
+    // Debug logging (always log for troubleshooting)
+    console.log('[LLM Planner] Calling chat.completions.create', {
+      model: selectedModel,
+      messagesCount: messages.length,
+      hasTools: true,
     });
 
-    const choice = response.choices[0];
+    try {
+      const response = await openai.chat.completions.create({
+        model: selectedModel,
+        messages,
+        tools: [collectSearchParamsSchema, searchAirbnbSchema],
+        tool_choice: 'auto',
+        temperature: 0.7,
+      });
 
-    // Check if LLM wants to call a function
-    if (choice.message.tool_calls && choice.message.tool_calls.length > 0) {
-      const toolCall = choice.message.tool_calls[0];
+      const choice = response.choices[0];
 
-      // Type guard: check if it's a function tool call
-      if (toolCall.type === 'function') {
-        const functionName = toolCall.function.name;
-        const args = parseSearchParamsPayload(toolCall.function.arguments);
+      // Check if LLM wants to call a function
+      if (choice.message.tool_calls && choice.message.tool_calls.length > 0) {
+        const toolCall = choice.message.tool_calls[0];
 
-        if (functionName === 'collectSearchParams') {
-          return handleCollectSearchParams(args);
-        } else if (functionName === 'searchAirbnb') {
-          return handleSearchAirbnb(args);
+        // Type guard: check if it's a function tool call
+        if (toolCall.type === 'function') {
+          const functionName = toolCall.function.name;
+          const args = parseSearchParamsPayload(toolCall.function.arguments);
+
+          if (functionName === 'collectSearchParams') {
+            return handleCollectSearchParams(args);
+          } else if (functionName === 'searchAirbnb') {
+            return handleSearchAirbnb(args);
+          }
         }
       }
-    }
 
-    // If no function call, return the assistant's message
-    return {
-      action: 'ask_clarification',
-      message: choice.message.content || 'I need more information to help you search.'
-    };
+      // If no function call, return the assistant's message
+      return {
+        action: 'ask_clarification',
+        message: choice.message.content || 'I need more information to help you search.'
+      };
+    } catch (apiError: unknown) {
+      // Enhanced error logging
+      console.error('[LLM Planner] API call failed', {
+        model: selectedModel,
+        error: apiError instanceof Error ? apiError.message : String(apiError),
+        errorType: apiError instanceof Error ? apiError.constructor.name : typeof apiError,
+        ...(apiError && typeof apiError === 'object' && 'status' in apiError ? { status: apiError.status } : {}),
+        ...(apiError && typeof apiError === 'object' && 'requestID' in apiError ? { requestID: apiError.requestID } : {}),
+      });
+      throw apiError;
+    }
 
   } catch (error) {
     console.error('LLM planner error:', error);
+
+    // Enhanced error logging for debugging
+    if (error instanceof Error) {
+      const errorDetails: Record<string, unknown> = {
+        message: error.message,
+        name: error.name,
+      };
+
+      // Extract additional info from OpenAI errors
+      if ('status' in error) {
+        errorDetails.status = error.status;
+      }
+      if ('code' in error) {
+        errorDetails.code = error.code;
+      }
+      if ('requestID' in error) {
+        errorDetails.requestID = error.requestID;
+      }
+
+      console.error('LLM planner error details:', errorDetails);
+    }
+
     return {
       action: 'error',
       message: 'Sorry, I encountered an error processing your request.'
@@ -105,6 +151,10 @@ export async function planNextAction(
  */
 function handleCollectSearchParams(args: SearchParamsPayload): PlanResult {
   const { clarificationNeeded, missingFields, ...params } = args;
+  const toolCall: ToolCall = {
+    name: 'collectSearchParams',
+    arguments: args as Record<string, unknown>
+  };
 
   // If there's a clarification question, ask it
   if (clarificationNeeded) {
@@ -112,7 +162,8 @@ function handleCollectSearchParams(args: SearchParamsPayload): PlanResult {
       action: 'ask_clarification',
       message: clarificationNeeded,
       searchParams: params,
-      missingFields: missingFields || []
+      missingFields: missingFields || [],
+      toolCall
     };
   }
 
@@ -125,7 +176,8 @@ function handleCollectSearchParams(args: SearchParamsPayload): PlanResult {
       action: 'ask_clarification',
       message: `I need more information: ${missing.join(', ')}`,
       searchParams: params,
-      missingFields: missing
+      missingFields: missing,
+      toolCall
     };
   }
 
@@ -140,7 +192,8 @@ function handleCollectSearchParams(args: SearchParamsPayload): PlanResult {
       budgetMin: params.budgetMin,
       budgetMax: params.budgetMax,
       currency: params.currency || 'USD'
-    }
+    },
+    toolCall
   };
 }
 
@@ -158,6 +211,10 @@ function handleSearchAirbnb(args: SearchParamsPayload): PlanResult {
       budgetMin: args.budgetMin,
       budgetMax: args.budgetMax,
       currency: args.currency || 'USD'
+    },
+    toolCall: {
+      name: 'searchAirbnb',
+      arguments: args as Record<string, unknown>
     }
   };
 }

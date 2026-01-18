@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
   const message = searchParams.get('message');
   const historyStr = searchParams.get('history');
   const requestedMode = searchParams.get('mode');
+  const model = searchParams.get('model') || undefined;
 
   if (!message) {
     return new Response('Message is required', { status: 400 });
@@ -75,97 +76,136 @@ export async function GET(request: NextRequest) {
 
   const traceId = randomUUID();
 
-  async function* generateResponse(): AsyncGenerator<SSEChunk> {
-    logger.setTraceId(traceId);
-    try {
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Request timeout')), 30000)
-      );
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (chunk: SSEChunk) => {
+        if (typeof chunk === 'string') {
+          controller.enqueue(encoder.encodeMessage(chunk));
+        } else if (chunk.type === 'message') {
+          controller.enqueue(encoder.encodeMessage(chunk.data));
+        } else {
+          controller.enqueue(encoder.encodeEvent(chunk.event, chunk.data));
+        }
+      };
 
-      const planResult = await Promise.race([
-        planNextAction(userMessage, history),
-        timeoutPromise,
-      ]);
+      const sendStatus = (status: string) => {
+        send({ type: 'event', event: 'status', data: status });
+      };
 
-      if (planResult.action === 'ask_clarification') {
-        logger.info('api', 'clarification_requested', {
-          missingFields: planResult.missingFields,
-        });
-        const message = planResult.message || 'Could you provide more details?';
-        yield message;
-        return;
-      }
+      logger.setTraceId(traceId);
+      try {
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Request timeout')), 60000) // Increased timeout for deep scraping
+        );
 
-      if (planResult.action === 'execute_search') {
-        const normalizedParams = normalizeSearchParams(planResult.searchParams);
-        if (!normalizedParams) {
-          yield 'I still need the location, check-in date, and check-out date to continue.';
+        // Initial status
+        sendStatus('Understanding your request...');
+
+        const planResult = await Promise.race([
+          planNextAction(userMessage, history, model),
+          timeoutPromise,
+        ]);
+
+        if (planResult.toolCall) {
+          send({
+            type: 'event',
+            event: 'results',
+            data: JSON.stringify({ toolCalls: [planResult.toolCall] }),
+          });
+        }
+
+        if (planResult.action === 'ask_clarification') {
+          logger.info('api', 'clarification_requested', {
+            missingFields: planResult.missingFields,
+          });
+          sendStatus('Clarification needed');
+          const message = planResult.message || 'Could you provide more details?';
+          send(message);
+          controller.close();
           return;
         }
 
-        const mode = resolveMCPMode(requestedMode);
-        logger.info('api', 'search_requested', {
-          mode,
-          location: normalizedParams.location,
-          checkIn: normalizedParams.checkIn,
-          checkOut: normalizedParams.checkOut,
-          hasBudget: Boolean(normalizedParams.budgetMin || normalizedParams.budgetMax),
+        if (planResult.action === 'execute_search') {
+          const normalizedParams = normalizeSearchParams(planResult.searchParams);
+          if (!normalizedParams) {
+            send('I still need the location, check-in date, and check-out date to continue.');
+            controller.close();
+            return;
+          }
+
+          const mode = resolveMCPMode(requestedMode);
+          logger.info('api', 'search_requested', {
+            mode,
+            location: normalizedParams.location,
+            checkIn: normalizedParams.checkIn,
+            checkOut: normalizedParams.checkOut,
+            hasBudget: Boolean(normalizedParams.budgetMin || normalizedParams.budgetMax),
+          });
+
+          sendStatus(`Planning search in ${normalizedParams.location}...`);
+          send(`Searching Airbnb listings using ${mode}...\n`);
+
+          const searchStart = Date.now();
+          const searchOutput = await runSearchPipeline(normalizedParams, mode, sendStatus, model);
+          const searchDuration = Date.now() - searchStart;
+
+          if (searchOutput.comparison) {
+            send(`Comparison complete. Winner: ${searchOutput.comparison.eval.comparison.winner}.\n`);
+          } else {
+            send(`Found ${searchOutput.listings.length} listings.\n`);
+          }
+
+          if (searchOutput.notes.length > 0) {
+            send(`${searchOutput.notes.join(' ')}\n`);
+          }
+
+          logger.withDuration('info', 'api', 'search_complete', searchDuration, {
+            mode: searchOutput.mode,
+            resultCount: searchOutput.listings.length,
+            comparison: Boolean(searchOutput.comparison),
+          });
+
+          const metadata: ChatMessage['metadata'] = {
+            mcpMode: searchOutput.mode,
+          };
+
+          if (searchOutput.comparison) {
+            metadata.comparison = searchOutput.comparison;
+          } else {
+            metadata.searchResults = searchOutput.listings;
+          }
+
+          send({
+            type: 'event',
+            event: 'results',
+            data: JSON.stringify(metadata),
+          });
+
+          // Clear status at the end
+          sendStatus('');
+          controller.close();
+          return;
+        }
+
+        if (planResult.action === 'error') {
+          send(planResult.message || 'Sorry, I encountered an error processing your request.');
+          sendStatus('');
+          controller.close();
+          return;
+        }
+      } catch (error) {
+        logger.error('api', 'Error in generateResponse', {
+          error: error instanceof Error ? error.message : String(error),
         });
-        yield `Searching Airbnb listings using ${mode}...\n`;
-
-        const searchStart = Date.now();
-        const searchOutput = await runSearchPipeline(normalizedParams, mode);
-        const searchDuration = Date.now() - searchStart;
-
-        if (searchOutput.comparison) {
-          yield `Comparison complete. Winner: ${searchOutput.comparison.eval.comparison.winner}.\n`;
-        } else {
-          yield `Found ${searchOutput.listings.length} listings.\n`;
-        }
-
-        if (searchOutput.notes.length > 0) {
-          yield `${searchOutput.notes.join(' ')}\n`;
-        }
-
-        logger.withDuration('info', 'api', 'search_complete', searchDuration, {
-          mode: searchOutput.mode,
-          resultCount: searchOutput.listings.length,
-          comparison: Boolean(searchOutput.comparison),
-        });
-
-        const metadata: ChatMessage['metadata'] = {
-          mcpMode: searchOutput.mode,
-        };
-
-        if (searchOutput.comparison) {
-          metadata.comparison = searchOutput.comparison;
-        } else {
-          metadata.searchResults = searchOutput.listings;
-        }
-
-        yield {
-          type: 'event',
-          event: 'results',
-          data: JSON.stringify(metadata),
-        };
-        return;
+        const errorMessage = getErrorMessage(error);
+        send(errorMessage);
+        sendStatus('');
+        controller.close();
+      } finally {
+        logger.clearTraceId();
       }
-
-      if (planResult.action === 'error') {
-        yield planResult.message || 'Sorry, I encountered an error processing your request.';
-        return;
-      }
-    } catch (error) {
-      logger.error('api', 'Error in generateResponse', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      yield getErrorMessage(error);
-    } finally {
-      logger.clearTraceId();
     }
-  }
-
-  const stream = encoder.createStream(generateResponse());
+  });
 
   return new Response(stream, { headers: streamHeaders });
 }
@@ -202,7 +242,9 @@ function resolveMCPMode(modeParam?: string | null): MCPMode {
 
 async function runSearchPipeline(
   params: SearchParams,
-  mode: MCPMode
+  mode: MCPMode,
+  onStatus?: (status: string) => void,
+  model?: string
 ): Promise<SearchOutput> {
   const config = getDefaultMCPConfig();
   let resolvedMode = mode;
@@ -234,10 +276,12 @@ async function runSearchPipeline(
   }
 
   if (resolvedMode === 'both') {
+    onStatus?.('Initializing parallel search (Playwright + Browserbase)...');
     const adapters = createMCPAdapter('both', config) as MCPAdapter[];
-    const results = await Promise.all(adapters.map(adapter => runAdapterSearch(adapter, params)));
+    const results = await Promise.all(adapters.map(adapter => runAdapterSearch(adapter, params, onStatus, model)));
     const resultsByName = toResultsByAdapter(adapters, results);
 
+    onStatus?.('Processing and comparing results...');
     const [playwrightProcessed, browserbaseProcessed] = await Promise.all([
       resultsByName.playwright
         ? Promise.resolve(postProcessListings(resultsByName.playwright.listings, params))
@@ -290,16 +334,18 @@ async function runSearchPipeline(
   }
 
   const primaryAdapter = createMCPAdapter(resolvedMode, config) as MCPAdapter;
-  let primaryResult = await runAdapterSearch(primaryAdapter, params);
+  let primaryResult = await runAdapterSearch(primaryAdapter, params, onStatus, model);
   let finalMode = resolvedMode;
 
   if (shouldFallback(primaryResult)) {
     const fallbackMode = resolvedMode === 'browserbase' ? 'playwright' : 'browserbase';
+    onStatus?.(`Search failed with ${resolvedMode}, failing over to ${fallbackMode}...`);
+
     if (fallbackMode === 'browserbase') {
       try {
         validateMCPConfig('browserbase', config);
         const fallbackAdapter = createMCPAdapter('browserbase', config) as MCPAdapter;
-        const fallbackResult = await runAdapterSearch(fallbackAdapter, params);
+        const fallbackResult = await runAdapterSearch(fallbackAdapter, params, onStatus, model);
         if (!shouldFallback(fallbackResult)) {
           primaryResult = fallbackResult;
           finalMode = 'browserbase';
@@ -312,7 +358,7 @@ async function runSearchPipeline(
       }
     } else {
       const fallbackAdapter = createMCPAdapter('playwright', config) as MCPAdapter;
-      const fallbackResult = await runAdapterSearch(fallbackAdapter, params);
+      const fallbackResult = await runAdapterSearch(fallbackAdapter, params, onStatus);
       if (!shouldFallback(fallbackResult)) {
         primaryResult = fallbackResult;
         finalMode = 'playwright';
@@ -321,6 +367,7 @@ async function runSearchPipeline(
     }
   }
 
+  onStatus?.('Filtering and ranking listings...');
   const processed = postProcessListings(primaryResult.listings, params);
   return {
     mode: finalMode,
@@ -347,7 +394,9 @@ function shouldFallback(result: MCPExecutionResult): boolean {
 
 async function runAdapterSearch(
   adapter: MCPAdapter,
-  params: SearchParams
+  params: SearchParams,
+  onStatus?: (status: string) => void,
+  model?: string
 ): Promise<MCPExecutionResult> {
   const start = Date.now();
   const errors: string[] = [];
@@ -355,6 +404,7 @@ async function runAdapterSearch(
   let listings: Listing[] = [];
 
   try {
+    onStatus?.(`Connecting to ${adapter.name}...`);
     await adapter.connect();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -372,6 +422,7 @@ async function runAdapterSearch(
   }
 
   try {
+    onStatus?.(`Searching Airbnb on ${adapter.name}...`);
     listings = await withRetry(
       () => adapter.searchAirbnb(params),
       2,
@@ -389,7 +440,8 @@ async function runAdapterSearch(
 
   if (listings.length > 0) {
     try {
-      listings = await enrichListings(adapter, listings);
+      onStatus?.(`Enriching ${listings.length} listings via ${adapter.name}...`);
+      listings = await enrichListings(adapter, listings, onStatus, model);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       errors.push(message);
@@ -431,20 +483,26 @@ async function runAdapterSearch(
 
 async function enrichListings(
   adapter: MCPAdapter,
-  listings: Listing[]
+  listings: Listing[],
+  onStatus?: (status: string) => void,
+  model?: string
 ): Promise<Listing[]> {
   const urls = listings.map(listing => listing.url).filter(Boolean);
   if (urls.length === 0) return listings;
 
+  onStatus?.(`Scraping details for ${urls.length} listings...`);
   const details = await adapter.getMultipleListingDetails(urls);
   const detailsByUrl = new Map(details.map(detail => [detail.url, detail]));
-  const summaries = await summarizeDetails(details);
+
+  onStatus?.('Summarizing reviews with AI...');
+  const summaries = await summarizeDetails(details, model);
 
   return listings.map((listing) => mergeListingDetails(listing, detailsByUrl, summaries));
 }
 
 async function summarizeDetails(
-  details: ListingDetail[]
+  details: ListingDetail[],
+  model?: string
 ): Promise<Map<string, string>> {
   const summaryMap = new Map<string, string>();
   const concurrency = APP_CONFIG.scraping.detailPageConcurrency;
@@ -452,7 +510,7 @@ async function summarizeDetails(
     if (!detail?.reviews || detail.reviews.length === 0) return null;
 
     try {
-      const summary = await summarizeReviews(detail.reviews, detail.title || 'Listing');
+      const summary = await summarizeReviews(detail.reviews, detail.title || 'Listing', model);
       return [detail.url, summary] as const;
     } catch (error) {
       logger.warn('llm', 'Review summarization failed', {

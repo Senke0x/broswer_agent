@@ -1,0 +1,38 @@
+.banner {
+  margin: var(--spacing-md);
+  padding: var(--spacing-md);
+  background-color: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
+  color: #991b1b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+}
+
+.message {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.retryButton {
+  padding: 6px 12px;
+  background-color: #ffffff;
+  border: 1px solid #fca5a5;
+  border-radius: var(--radius-md);
+  color: #7f1d1d;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.retryButton:hover {
+  background-color: #fef2f2;
+}
+
+.retryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -11,8 +11,12 @@ const MAX_HISTORY_ROUNDS = 10;
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mcpMode, setMcpMode] = useState<MCPMode>('playwright');
+  const [selectedModel, setSelectedModel] = useState<string>('gpt-4o');
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [isFetchingModels, setIsFetchingModels] = useState(false);
   const { connect, disconnect } = useSSE();
   const cleanupRef = useRef<(() => void) | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
@@ -37,6 +41,7 @@ export function useChat() {
     if (!content.trim() || isLoading) return;
 
     setError(null);
+    setCurrentStatus(null);
     setIsLoading(true);
 
     // Add user message
@@ -53,7 +58,8 @@ export function useChat() {
       const params = new URLSearchParams({
         message: content,
         history: JSON.stringify(recentMessages),
-        mode: mcpMode
+        mode: mcpMode,
+        ...(selectedModel && { model: selectedModel })
       });
 
       // Connect to SSE endpoint and store cleanup function
@@ -79,6 +85,9 @@ export function useChat() {
           });
         },
         events: {
+          status: (data) => {
+            setCurrentStatus(data);
+          },
           results: (data) => {
             try {
               const metadata = JSON.parse(data) as ChatMessage['metadata'];
@@ -117,6 +126,7 @@ export function useChat() {
               console.error('Failed to parse server error event', parseError);
             } finally {
               setIsLoading(false);
+              setCurrentStatus(null);
               if (cleanupRef.current) {
                 cleanupRef.current();
                 cleanupRef.current = null;
@@ -127,6 +137,7 @@ export function useChat() {
         onError: (err) => {
           setError(err.message);
           setIsLoading(false);
+          setCurrentStatus(null);
           if (cleanupRef.current) {
             cleanupRef.current();
             cleanupRef.current = null;
@@ -134,6 +145,7 @@ export function useChat() {
         },
         onComplete: () => {
           setIsLoading(false);
+          setCurrentStatus(null);
           if (cleanupRef.current) {
             cleanupRef.current();
             cleanupRef.current = null;
@@ -144,14 +156,47 @@ export function useChat() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send message');
       setIsLoading(false);
+      setCurrentStatus(null);
     }
-  }, [isLoading, addMessage, connect, mcpMode]);
+  }, [isLoading, addMessage, connect, mcpMode, selectedModel]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
     messagesRef.current = [];
     setError(null);
+    setCurrentStatus(null);
   }, []);
+
+  const retry = useCallback(() => {
+    const lastUserMessage = messagesRef.current.slice().reverse().find(m => m.role === 'user');
+    if (lastUserMessage) {
+      sendMessage(lastUserMessage.content);
+    }
+  }, [sendMessage]);
+
+  const fetchModels = useCallback(async () => {
+    setIsFetchingModels(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/models');
+      if (!response.ok) {
+        throw new Error('Failed to fetch models');
+      }
+      const data = await response.json();
+      const models = data.models || [];
+      setAvailableModels(models);
+      
+      // Use functional update or check current value outside to avoid dependency loop
+      // But for simplicity in this case, we just check if it's there
+      if (models.length > 0 && !models.includes(selectedModel)) {
+        setSelectedModel(models[0]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch models');
+    } finally {
+      setIsFetchingModels(false);
+    }
+  }, [selectedModel]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -166,11 +211,18 @@ export function useChat() {
   return {
     messages,
     isLoading,
+    currentStatus,
     error,
     sendMessage,
+    retry,
     clearMessages,
     mcpMode,
     setMcpMode,
-    disconnect
+    disconnect,
+    selectedModel,
+    setSelectedModel,
+    availableModels,
+    fetchModels,
+    isFetchingModels,
   };
 }

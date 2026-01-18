@@ -5,6 +5,7 @@ import { ChatMessage } from '@/types/chat';
 import { MessageBubble } from './MessageBubble';
 import { ListingCard } from './ListingCard';
 import { ComparisonView } from './ComparisonView';
+import { ActionStatus } from './ActionStatus';
 import { SkeletonCard, SkeletonText } from '../ui/Skeleton';
 import { Listing } from '@/types/listing';
 import styles from './MessageList.module.css';
@@ -12,14 +13,15 @@ import styles from './MessageList.module.css';
 interface MessageListProps {
   messages: ChatMessage[];
   isLoading?: boolean;
+  currentStatus?: string | null;
 }
 
-export const MessageList = memo(function MessageList({ messages, isLoading = false }: MessageListProps) {
+export const MessageList = memo(function MessageList({ messages, isLoading = false, currentStatus }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, currentStatus, isLoading]);
 
   return (
     <div className={styles.messageList}>
@@ -40,6 +42,7 @@ export const MessageList = memo(function MessageList({ messages, isLoading = fal
       ))}
       {isLoading && (
         <div className={styles.loadingBlock}>
+          {currentStatus && <ActionStatus status={currentStatus} />}
           <div className={styles.loadingBubble}>
             <SkeletonText lines={2} />
           </div>

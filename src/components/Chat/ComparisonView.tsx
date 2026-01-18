@@ -1,6 +1,6 @@
 'use client';
 
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { Listing } from '@/types/listing';
 import { ChatMessage } from '@/types/chat';
 import { ListingCard } from './ListingCard';
@@ -11,6 +11,8 @@ interface ComparisonViewProps {
 }
 
 export const ComparisonView = memo(function ComparisonView({ comparison }: ComparisonViewProps) {
+  const [activeTab, setActiveTab] = useState<'all' | 'playwright' | 'browserbase'>('all');
+  
   if (!comparison) return null;
 
   const { eval: evalResult, results } = comparison;
@@ -51,9 +53,34 @@ export const ComparisonView = memo(function ComparisonView({ comparison }: Compa
         />
       </div>
 
+      <div className={styles.tabs}>
+        <button 
+          className={`${styles.tab} ${activeTab === 'all' ? styles.active : ''}`}
+          onClick={() => setActiveTab('all')}
+        >
+          Combined View
+        </button>
+        <button 
+          className={`${styles.tab} ${activeTab === 'playwright' ? styles.active : ''}`}
+          onClick={() => setActiveTab('playwright')}
+        >
+          Playwright Only
+        </button>
+        <button 
+          className={`${styles.tab} ${activeTab === 'browserbase' ? styles.active : ''}`}
+          onClick={() => setActiveTab('browserbase')}
+        >
+          Browserbase Only
+        </button>
+      </div>
+
       <div className={styles.results}>
-        <ResultsColumn title="Playwright Results" listings={results.playwright} />
-        <ResultsColumn title="Browserbase Results" listings={results.browserbase} />
+        {(activeTab === 'all' || activeTab === 'playwright') && (
+           <ResultsColumn title="Playwright Results" listings={results.playwright} />
+        )}
+        {(activeTab === 'all' || activeTab === 'browserbase') && (
+           <ResultsColumn title="Browserbase Results" listings={results.browserbase} />
+        )}
       </div>
     </div>
   );

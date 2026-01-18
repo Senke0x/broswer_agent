@@ -1,7 +1,7 @@
 // Review summarizer using OpenAI
 
 import { Review } from '@/types/listing';
-import { getOpenAIClient, DEFAULT_MODEL } from './client';
+import { getOpenAIClient, DEFAULT_MODEL, ensureOpenAIReady } from './client';
 
 /**
  * Summarize reviews for a listing
@@ -9,7 +9,8 @@ import { getOpenAIClient, DEFAULT_MODEL } from './client';
  */
 export async function summarizeReviews(
   reviews: Review[],
-  listingTitle: string
+  listingTitle: string,
+  model?: string
 ): Promise<string> {
   try {
     // If no reviews, return default message
@@ -29,9 +30,10 @@ ${reviewTexts}
 
 Summary:`;
 
+    await ensureOpenAIReady();
     const openai = getOpenAIClient();
     const response = await openai.chat.completions.create({
-      model: DEFAULT_MODEL,
+      model: model || DEFAULT_MODEL,
       messages: [
         {
           role: 'system',
