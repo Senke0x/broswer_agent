@@ -23,21 +23,62 @@ type SearchParamsPayload = Partial<SearchParams> & {
 };
 
 /**
- * System prompt for the LLM planner
+ * Build system prompt with current time context for relative date inference
  */
-const SYSTEM_PROMPT = `You are an Airbnb search assistant. Your job is to help users find Airbnb listings by:
+function buildSystemPrompt(userTime?: string, userTimezone?: string): string {
+  // Parse user time or fallback to server time
+  const now = userTime ? new Date(userTime) : new Date();
+  const timezone = userTimezone || 'UTC';
+
+  // Get day of week name
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayOfWeek = dayNames[now.getDay()];
+
+  // Format date components
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const day = now.getDate();
+  const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+  return `You are an Airbnb search assistant. Your job is to help users find Airbnb listings by:
 1. Extracting search parameters (location, check-in, check-out dates, guests, budget)
 2. Asking clarifying questions for missing required information
-3. Converting relative dates (e.g., "next weekend") to explicit dates and confirming with user
+3. Converting relative dates (e.g., "next weekend", "this Friday") to explicit dates
+
+CURRENT TIME CONTEXT:
+- Current date: ${dateStr} (${dayOfWeek})
+- User timezone: ${timezone}
+- Year: ${year}
+
+RELATIVE DATE CONVERSION RULES:
+- "this weekend" = the upcoming Saturday and Sunday of the current week
+- "next weekend" = Saturday and Sunday of next week
+- "this Friday" = the upcoming Friday (or today if it's Friday)
+- "next Monday" = Monday of next week
+- "tomorrow" = the day after today
+- "in X days" = today + X days
+- Holiday dates (e.g., "Christmas", "New Year") = infer the actual date based on current year
 
 Required fields: location, checkIn (YYYY-MM-DD), checkOut (YYYY-MM-DD)
 Optional fields: guests (default: 2), budgetMin, budgetMax, currency (default: USD)
 
 IMPORTANT:
-- Always convert relative dates to explicit dates and ask for confirmation
-- Check-in date must be in the future
+- Use the current date context above to calculate exact dates from relative expressions
+- When user mentions relative dates, convert them to explicit YYYY-MM-DD format
+- If the inferred date seems ambiguous, confirm with the user
+- Check-in date must be in the future (after ${dateStr})
 - Check-out date must be after check-in date
 - Be conversational and helpful`;
+}
+
+/**
+ * Options for planNextAction
+ */
+export interface PlanOptions {
+  model?: string;
+  userTime?: string;       // ISO 8601 timestamp from user's browser
+  userTimezone?: string;   // IANA timezone string (e.g., 'Asia/Shanghai')
+}
 
 /**
  * Plan the next action based on user message and conversation history
@@ -45,12 +86,15 @@ IMPORTANT:
 export async function planNextAction(
   userMessage: string,
   history: ChatMessage[],
-  model?: string
+  options?: PlanOptions
 ): Promise<PlanResult> {
   try {
-    // Build conversation context for OpenAI
+    const { model, userTime, userTimezone } = options || {};
+
+    // Build conversation context for OpenAI with time-aware system prompt
+    const systemPrompt = buildSystemPrompt(userTime, userTimezone);
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: systemPrompt },
       ...history.map(msg => ({
         role: msg.role as 'user' | 'assistant',
         content: msg.content

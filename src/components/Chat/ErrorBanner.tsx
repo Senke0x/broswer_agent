@@ -14,12 +14,12 @@ export function ErrorBanner({ message, onRetry, isRetrying }: ErrorBannerProps) 
     <div className={styles.banner}>
       <span className={styles.message}>⚠️ {message}</span>
       {onRetry && (
-        <button 
-          className={styles.retryButton} 
+        <button
+          className={styles.retryButton}
           onClick={onRetry}
           disabled={isRetrying}
         >
-          {isRetrying ? 'Retrying...' : 'Retry'}
+          {isRetrying ? '重试中...' : '重试'}
         </button>
       )}
     </div>

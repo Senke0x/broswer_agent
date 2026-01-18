@@ -26,6 +26,8 @@ export async function GET(request: NextRequest) {
   const historyStr = searchParams.get('history');
   const requestedMode = searchParams.get('mode');
   const model = searchParams.get('model') || undefined;
+  const userTime = searchParams.get('userTime') || undefined;
+  const userTimezone = searchParams.get('userTimezone') || undefined;
 
   if (!message) {
     return new Response('Message is required', { status: 400 });
@@ -102,7 +104,7 @@ export async function GET(request: NextRequest) {
         sendStatus('Understanding your request...');
 
         const planResult = await Promise.race([
-          planNextAction(userMessage, history, model),
+          planNextAction(userMessage, history, { model, userTime, userTimezone }),
           timeoutPromise,
         ]);
 

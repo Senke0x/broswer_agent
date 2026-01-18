@@ -1,6 +1,6 @@
 'use client';
 
-import React, { memo, useState, useEffect } from 'react';
+import React, { memo, useState } from 'react';
 import { Listing } from '@/types/listing';
 import { Card } from '../ui/Card';
 import styles from './ListingCard.module.css';
@@ -24,18 +24,16 @@ export const ListingCard = memo(function ListingCard({ listing }: ListingCardPro
     imageUrl
   } = listing;
 
-  const [imgSrc, setImgSrc] = useState(imageUrl || PLACEHOLDER_IMAGE);
   const [imgError, setImgError] = useState(false);
+  const [lastImageUrl, setLastImageUrl] = useState(imageUrl);
 
-  // Update image source when listing changes
-  useEffect(() => {
-    if (imageUrl) {
-      setImgSrc(imageUrl);
-      setImgError(false);
-    } else {
-      setImgSrc(PLACEHOLDER_IMAGE);
-    }
-  }, [imageUrl]);
+  // Reset error state if imageUrl changes (Derived State pattern)
+  if (imageUrl !== lastImageUrl) {
+    setLastImageUrl(imageUrl);
+    setImgError(false);
+  }
+
+  const imgSrc = (imgError || !imageUrl) ? PLACEHOLDER_IMAGE : imageUrl;
 
   const handleImageError = () => {
     if (!imgError) {
@@ -44,7 +42,6 @@ export const ListingCard = memo(function ListingCard({ listing }: ListingCardPro
         url: url
       });
       setImgError(true);
-      setImgSrc(PLACEHOLDER_IMAGE);
     }
   };
 

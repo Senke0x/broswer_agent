@@ -38,6 +38,7 @@ export class PlaywrightAdapter implements MCPAdapter {
         ...process.env,
         // Pass headless config to Playwright MCP server if supported
         PLAYWRIGHT_HEADLESS: this.config.headless ? 'true' : 'false',
+        HEADLESS: this.config.headless ? 'true' : 'false',
         PLAYWRIGHT_BROWSER: this.config.browser,
       };
 

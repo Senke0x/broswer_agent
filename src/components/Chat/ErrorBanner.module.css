@@ -1,38 +1,65 @@
 .banner {
-  margin: var(--spacing-md);
-  padding: var(--spacing-md);
-  background-color: #fee2e2;
-  border: 1px solid #fecaca;
-  border-radius: var(--radius-md);
-  color: #991b1b;
+  margin: var(--spacing-md) var(--spacing-lg);
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-lg);
+  color: var(--color-error);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-md);
+  animation: slideIn 0.3s ease-out;
+}
+
+.banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.5), transparent);
 }
 
 .message {
   font-size: var(--font-size-sm);
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
 }
 
 .retryButton {
-  padding: 6px 12px;
-  background-color: #ffffff;
-  border: 1px solid #fca5a5;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.5);
   border-radius: var(--radius-md);
-  color: #7f1d1d;
+  color: var(--color-error);
   font-size: var(--font-size-sm);
   font-weight: 600;
+  font-family: var(--font-family);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
 }
 
-.retryButton:hover {
-  background-color: #fef2f2;
+.retryButton:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: var(--color-error);
 }
 
 .retryButton:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

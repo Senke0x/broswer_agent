@@ -1,8 +1,9 @@
 .card {
-  background-color: var(--color-background);
+  background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--spacing-md);
+  transition: all var(--transition-base);
 }
 
 .card.default {
@@ -11,9 +12,11 @@
 
 .card.elevated {
   box-shadow: var(--shadow-md);
+  border-color: var(--color-border-strong);
 }
 
 .card:hover {
   box-shadow: var(--shadow-lg);
-  transition: box-shadow 0.2s ease;
+  border-color: var(--color-border-strong);
+  transform: translateY(-2px);
 }

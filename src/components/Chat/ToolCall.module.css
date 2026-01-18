@@ -2,36 +2,57 @@
   margin-bottom: var(--spacing-sm);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-background);
+  background: var(--color-surface);
   overflow: hidden;
   font-size: var(--font-size-sm);
   width: 100%;
+  transition: all var(--transition-fast);
+}
+
+.container:hover {
+  border-color: var(--color-border-strong);
 }
 
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--spacing-xs) var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
   cursor: pointer;
-  background: rgba(0,0,0,0.02);
+  background: rgba(139, 92, 246, 0.05);
   user-select: none;
+  transition: background var(--transition-fast);
 }
 
 .header:hover {
-  background: rgba(0,0,0,0.05);
+  background: rgba(139, 92, 246, 0.1);
 }
 
 .title {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
-  color: var(--color-text-secondary);
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.toolIcon {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-accent);
+  color: white;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
 }
 
 .icon {
   font-size: 10px;
-  transition: transform 0.2s;
-  color: var(--color-text-secondary);
+  transition: transform var(--transition-fast);
+  color: var(--color-text-muted);
 }
 
 .icon.expanded {
@@ -39,16 +60,63 @@
 }
 
 .body {
-  padding: var(--spacing-sm);
+  padding: var(--spacing-md);
   border-top: 1px solid var(--color-border);
-  background: var(--color-surface);
+  background: var(--color-surface-elevated);
+  animation: slideDown 0.2s ease-out;
 }
 
 .code {
-  font-family: monospace;
+  font-family: var(--font-mono);
   white-space: pre-wrap;
   color: var(--color-text);
   font-size: 0.85em;
   margin: 0;
   overflow-x: auto;
+  line-height: 1.5;
+}
+
+/* Status indicator */
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-success);
+  animation: pulse 2s infinite;
+}
+
+.statusDot.pending {
+  background: var(--color-warning);
+}
+
+.statusDot.error {
+  background: var(--color-error);
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }

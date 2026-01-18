@@ -1,36 +1,85 @@
 .inputBar {
   display: flex;
-  align-items: flex-end;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md);
-  background-color: var(--color-background);
-  border-top: 1px solid var(--color-border);
+  justify-content: center;
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  position: relative;
+  z-index: 10;
+}
+
+.inputWrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 26px; /* Pill shapeish */
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+.inputWrapper:focus-within {
+  border-color: var(--color-text-muted); /* Darker border on focus */
+  box-shadow: var(--shadow-md);
 }
 
 .input {
-  flex: 1;
-  padding: var(--spacing-sm) var(--spacing-md);
+  width: 100%;
+  padding: 14px 50px 14px 20px; /* Right padding for button */
   font-size: var(--font-size-base);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  font-family: var(--font-family);
+  background: transparent;
+  border: none;
   outline: none;
-  font-family: inherit;
   resize: none;
-  min-height: 40px;
+  min-height: 52px;
   max-height: 200px;
   line-height: 1.5;
-  transition: border-color 0.2s;
+  color: var(--color-text);
 }
 
-.input:focus {
-  border-color: var(--color-primary);
+.input::placeholder {
+  color: var(--color-text-muted);
 }
 
-.input:disabled {
-  background-color: var(--color-surface);
-  cursor: not-allowed;
+.controls {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
 }
 
 .sendButton {
-  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--color-primary); /* Black/Dark */
+  border: none;
+  border-radius: 50%; /* Circle */
+  color: var(--color-primary-foreground);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sendButton svg {
+  width: 18px;
+  height: 18px;
+  margin-left: 2px; /* Optical adjustment */
+}
+
+.sendButton:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: scale(1.05);
+}
+
+.sendButton:disabled {
+  background: var(--color-surface-hover);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  opacity: 1;
 }

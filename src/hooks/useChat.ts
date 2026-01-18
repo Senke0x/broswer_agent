@@ -17,6 +17,7 @@ export function useChat() {
   const [selectedModel, setSelectedModel] = useState<string>('gpt-4o');
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
+  const [screenshot, setScreenshot] = useState<string | null>(null);
   const { connect, disconnect } = useSSE();
   const cleanupRef = useRef<(() => void) | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
@@ -42,6 +43,7 @@ export function useChat() {
 
     setError(null);
     setCurrentStatus(null);
+    setScreenshot(null);
     setIsLoading(true);
 
     // Add user message
@@ -54,11 +56,15 @@ export function useChat() {
     try {
       const recentMessages = messagesRef.current.slice(-MAX_HISTORY_ROUNDS * 2);
 
-      // Build query params
+      // Build query params with current user time for relative date inference
+      const userTime = new Date().toISOString();
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const params = new URLSearchParams({
         message: content,
         history: JSON.stringify(recentMessages),
         mode: mcpMode,
+        userTime,
+        userTimezone,
         ...(selectedModel && { model: selectedModel })
       });
 
@@ -87,6 +93,9 @@ export function useChat() {
         events: {
           status: (data) => {
             setCurrentStatus(data);
+          },
+          'browser-screenshot': (data) => {
+            setScreenshot(data);
           },
           results: (data) => {
             try {
@@ -185,7 +194,7 @@ export function useChat() {
       const data = await response.json();
       const models = data.models || [];
       setAvailableModels(models);
-      
+
       // Use functional update or check current value outside to avoid dependency loop
       // But for simplicity in this case, we just check if it's there
       if (models.length > 0 && !models.includes(selectedModel)) {
@@ -224,5 +233,6 @@ export function useChat() {
     availableModels,
     fetchModels,
     isFetchingModels,
+    screenshot,
   };
 }
