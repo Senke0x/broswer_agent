@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { memo } from 'react';
 import { Listing } from '@/types/listing';
 import { Card } from '../ui/Card';
 import styles from './ListingCard.module.css';
@@ -9,7 +9,7 @@ interface ListingCardProps {
   listing: Listing;
 }
 
-export function ListingCard({ listing }: ListingCardProps) {
+export const ListingCard = memo(function ListingCard({ listing }: ListingCardProps) {
   const {
     title,
     pricePerNight,
@@ -46,4 +46,4 @@ export function ListingCard({ listing }: ListingCardProps) {
       </a>
     </Card>
   );
-}
+});

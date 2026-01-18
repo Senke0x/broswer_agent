@@ -1,5 +1,10 @@
 // SSE (Server-Sent Events) encoder utility
 
+export type SSEChunk =
+  | string
+  | { type: 'message'; data: string }
+  | { type: 'event'; event: string; data: string };
+
 export class SSEEncoder {
   private encoder = new TextEncoder();
 
@@ -7,7 +12,16 @@ export class SSEEncoder {
    * Encode a message for SSE streaming
    */
   encodeMessage(data: string): Uint8Array {
-    return this.encoder.encode(`data: ${data}\n\n`);
+    const lines = data.split(/\r?\n/);
+    const payload = lines.map(line => `data: ${line}`).join('\n');
+    return this.encoder.encode(`${payload}\n\n`);
+  }
+
+  /**
+   * Encode a named event for SSE streaming
+   */
+  encodeEvent(event: string, data: string): Uint8Array {
+    return this.encoder.encode(`event: ${event}\ndata: ${data}\n\n`);
   }
 
   /**
@@ -21,29 +35,37 @@ export class SSEEncoder {
    * Encode error message
    */
   encodeError(error: string): Uint8Array {
-    return this.encoder.encode(`event: error\ndata: ${JSON.stringify({ error })}\n\n`);
+    return this.encoder.encode(`event: server-error\ndata: ${JSON.stringify({ error })}\n\n`);
   }
 
   /**
    * Create a ReadableStream for SSE
    */
-  createStream(generator: AsyncGenerator<string>): ReadableStream<Uint8Array> {
-    const encoder = this;
-
+  createStream(generator: AsyncGenerator<SSEChunk>): ReadableStream<Uint8Array> {
     return new ReadableStream({
-      async start(controller) {
+      start: async (controller) => {
         try {
           for await (const chunk of generator) {
-            controller.enqueue(encoder.encodeMessage(chunk));
+            controller.enqueue(this.encodeChunk(chunk));
           }
-          controller.enqueue(encoder.encodeComplete());
+          controller.enqueue(this.encodeComplete());
           controller.close();
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          controller.enqueue(encoder.encodeError(errorMessage));
+          controller.enqueue(this.encodeError(errorMessage));
           controller.close();
         }
-      }
+      },
     });
+  }
+
+  private encodeChunk(chunk: SSEChunk): Uint8Array {
+    if (typeof chunk === 'string') {
+      return this.encodeMessage(chunk);
+    }
+    if (chunk.type === 'message') {
+      return this.encodeMessage(chunk.data);
+    }
+    return this.encodeEvent(chunk.event, chunk.data);
   }
 }

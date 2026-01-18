@@ -75,6 +75,43 @@ export function useChat() {
             }
           });
         },
+        events: {
+          results: (data) => {
+            try {
+              const metadata = JSON.parse(data) as ChatMessage['metadata'];
+              setMessages(prev => {
+                const existing = prev.find(m => m.id === assistantMessageId);
+                if (existing) {
+                  return prev.map(m =>
+                    m.id === assistantMessageId
+                      ? { ...m, metadata: { ...existing.metadata, ...metadata } }
+                      : m
+                  );
+                }
+                return [...prev, {
+                  id: assistantMessageId,
+                  role: 'assistant' as const,
+                  content: assistantContentRef.current,
+                  timestamp: Date.now(),
+                  metadata
+                }];
+              });
+            } catch (parseError) {
+              console.error('Failed to parse results event', parseError);
+            }
+          },
+          'server-error': (data) => {
+            try {
+              const payload = JSON.parse(data) as { error?: string };
+              setError(payload.error || 'Server error occurred');
+            } catch (parseError) {
+              setError('Server error occurred');
+              console.error('Failed to parse server error event', parseError);
+            } finally {
+              setIsLoading(false);
+            }
+          }
+        },
         onError: (err) => {
           setError(err.message);
           setIsLoading(false);

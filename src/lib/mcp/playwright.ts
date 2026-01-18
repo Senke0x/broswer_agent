@@ -131,20 +131,26 @@ export class PlaywrightAdapter implements MCPAdapter {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  private parseListings(content: any, currency: string): Listing[] {
+  private parseListings(content: unknown, currency: string): Listing[] {
     const listings: Listing[] = [];
     const data = Array.isArray(content) ? content : [content];
 
     for (const item of data) {
-      if (item.title && item.price) {
+      if (!item || typeof item !== 'object') {
+        continue;
+      }
+      const record = item as Record<string, unknown>;
+      const title = typeof record.title === 'string' ? record.title : '';
+      const priceRaw = toStringValue(record.price);
+      if (title && priceRaw) {
         listings.push({
-          title: item.title,
-          pricePerNight: this.parsePrice(item.price),
+          title,
+          pricePerNight: this.parsePrice(priceRaw),
           currency,
-          rating: item.rating ? parseFloat(item.rating) : null,
+          rating: toNumberValue(record.rating),
           reviewCount: null,
           reviewSummary: null,
-          url: item.url || ''
+          url: typeof record.url === 'string' ? record.url : ''
         });
       }
     }
@@ -191,26 +197,28 @@ export class PlaywrightAdapter implements MCPAdapter {
     }
   }
 
-  private parseListingDetail(content: any, url: string): ListingDetail {
+  private parseListingDetail(content: unknown, url: string): ListingDetail {
     const reviews: Review[] = [];
+    const record = content && typeof content === 'object' ? (content as Record<string, unknown>) : {};
 
-    if (content.reviews && Array.isArray(content.reviews)) {
-      for (const review of content.reviews) {
-        if (review.text) {
-          reviews.push({
-            text: review.text,
-            author: review.author || 'Anonymous',
-            date: review.date || new Date().toISOString()
-          });
-        }
-      }
+    const rawReviews = Array.isArray(record.reviews) ? record.reviews : [];
+    for (const review of rawReviews) {
+      if (!review || typeof review !== 'object') continue;
+      const reviewRecord = review as Record<string, unknown>;
+      const text = typeof reviewRecord.text === 'string' ? reviewRecord.text : '';
+      if (!text) continue;
+      reviews.push({
+        text,
+        author: typeof reviewRecord.author === 'string' ? reviewRecord.author : 'Anonymous',
+        date: typeof reviewRecord.date === 'string' ? reviewRecord.date : new Date().toISOString()
+      });
     }
 
     return {
-      title: content.title || '',
-      pricePerNight: content.price ? this.parsePrice(content.price) : 0,
+      title: typeof record.title === 'string' ? record.title : '',
+      pricePerNight: record.price ? this.parsePrice(toStringValue(record.price)) : 0,
       currency: 'USD',
-      rating: content.rating ? parseFloat(content.rating) : null,
+      rating: toNumberValue(record.rating),
       reviewCount: reviews.length,
       reviewSummary: null,
       reviews,
@@ -232,4 +240,19 @@ export class PlaywrightAdapter implements MCPAdapter {
 
     return results;
   }
+}
+
+function toStringValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return value.toString();
+  return '';
+}
+
+function toNumberValue(value: unknown): number | null {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
 }

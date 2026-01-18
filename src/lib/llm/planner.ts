@@ -16,6 +16,11 @@ export interface PlanResult {
   missingFields?: string[];
 }
 
+type SearchParamsPayload = Partial<SearchParams> & {
+  missingFields?: string[];
+  clarificationNeeded?: string | null;
+};
+
 /**
  * System prompt for the LLM planner
  */
@@ -70,7 +75,7 @@ export async function planNextAction(
       // Type guard: check if it's a function tool call
       if (toolCall.type === 'function') {
         const functionName = toolCall.function.name;
-        const args = JSON.parse(toolCall.function.arguments);
+        const args = parseSearchParamsPayload(toolCall.function.arguments);
 
         if (functionName === 'collectSearchParams') {
           return handleCollectSearchParams(args);
@@ -98,7 +103,7 @@ export async function planNextAction(
 /**
  * Handle collectSearchParams function call
  */
-function handleCollectSearchParams(args: any): PlanResult {
+function handleCollectSearchParams(args: SearchParamsPayload): PlanResult {
   const { clarificationNeeded, missingFields, ...params } = args;
 
   // If there's a clarification question, ask it
@@ -113,7 +118,7 @@ function handleCollectSearchParams(args: any): PlanResult {
 
   // Check if all required fields are present
   const required = ['location', 'checkIn', 'checkOut'];
-  const missing = required.filter(field => !params[field]);
+  const missing = required.filter(field => !params[field as keyof SearchParams]);
 
   if (missing.length > 0) {
     return {
@@ -142,7 +147,7 @@ function handleCollectSearchParams(args: any): PlanResult {
 /**
  * Handle searchAirbnb function call
  */
-function handleSearchAirbnb(args: any): PlanResult {
+function handleSearchAirbnb(args: SearchParamsPayload): PlanResult {
   return {
     action: 'execute_search',
     searchParams: {
@@ -157,4 +162,14 @@ function handleSearchAirbnb(args: any): PlanResult {
   };
 }
 
-
+function parseSearchParamsPayload(raw: string): SearchParamsPayload {
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      return parsed as SearchParamsPayload;
+    }
+  } catch (error) {
+    console.error('Failed to parse tool call arguments', error);
+  }
+  return {};
+}

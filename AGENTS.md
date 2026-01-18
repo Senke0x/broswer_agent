@@ -64,13 +64,16 @@ description, and file path so you can open the source for full instructions.
   approach, and continue.
 
 ## Project Decisions (Synced)
-Source of truth: DESIGN.md
+Source of truth: DESIGN.md + CLAUDE.md
 
 - Budget is per night in local currency.
-- Dates require explicit month/day; if holiday or relative date is given,
-  infer and ask for confirmation.
-- Review summary is derived from listing detail reviews (collect >= 10 when
-  available, otherwise all).
-- A/B evaluation results are user-visible.
-- Output is ordered by price high to low; if no budget, pick 5 high + 5 mid
-  first, then order.
+- Dates require explicit month/day; infer holiday/relative dates and confirm.
+- Default guests = 2.
+- Review summary is derived from listing detail reviews (collect >= 10 when available, otherwise all).
+- A/B evaluation results are user-visible; comparison logs stay in server logs.
+- Output is ordered by price high to low; if no budget, pick 5 high + 5 mid first, then order.
+- Chat streaming uses SSE; keep 10 rounds of conversation history.
+- MCP backends: Playwright (local) and Browserbase (cloud) with retry + failover.
+- Styling uses vanilla CSS (no Tailwind unless requested).
+- Rate limit 10 req/min; detail concurrency 3 with 1-2s delays; cooldown 30s.
+- Mobile support is not required for MVP.

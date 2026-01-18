@@ -1,5 +1,8 @@
 // Chat message types for the conversation interface
 
+import { EvalResult } from './eval';
+import { Listing } from './listing';
+
 export type MessageRole = 'user' | 'assistant' | 'system';
 
 export interface ToolCall {
@@ -15,7 +18,14 @@ export interface ChatMessage {
   timestamp: number;
   metadata?: {
     toolCalls?: ToolCall[];
-    searchResults?: unknown[];
+    searchResults?: Listing[];
+    comparison?: {
+      eval: EvalResult;
+      results: {
+        playwright?: Listing[];
+        browserbase?: Listing[];
+      };
+    };
     mcpMode?: 'playwright' | 'browserbase' | 'both';
   };
 }

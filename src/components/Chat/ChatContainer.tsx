@@ -23,11 +23,11 @@ export function ChatContainer() {
           <div className={styles.emptyState}>
             <p>Start a conversation by asking about Airbnb listings</p>
             <p className={styles.example}>
-              Example: "Find me a place in Tokyo for next weekend"
+              Example: &quot;Find me a place in Tokyo for next weekend&quot;
             </p>
           </div>
         ) : (
-          <MessageList messages={messages} />
+          <MessageList messages={messages} isLoading={isLoading} />
         )}
       </div>
 

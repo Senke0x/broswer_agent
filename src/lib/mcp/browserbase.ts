@@ -144,7 +144,7 @@ export class BrowserbaseAdapter implements MCPAdapter {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  private parseListings(content: any, currency: string): Listing[] {
+  private parseListings(content: unknown, currency: string): Listing[] {
     // Parse the extracted content into Listing objects
     // This will depend on the structure returned by the extract tool
     const listings: Listing[] = [];
@@ -153,15 +153,21 @@ export class BrowserbaseAdapter implements MCPAdapter {
       const data = Array.isArray(content) ? content : [content];
 
       for (const item of data) {
-        if (item.title && item.price) {
+        if (!item || typeof item !== 'object') {
+          continue;
+        }
+        const record = item as Record<string, unknown>;
+        const title = typeof record.title === 'string' ? record.title : '';
+        const priceRaw = toStringValue(record.price);
+        if (title && priceRaw) {
           listings.push({
-            title: item.title,
-            pricePerNight: this.parsePrice(item.price),
+            title,
+            pricePerNight: this.parsePrice(priceRaw),
             currency: currency,
-            rating: item.rating ? parseFloat(item.rating) : null,
-            reviewCount: item.reviewCount ? parseInt(item.reviewCount) : null,
+            rating: toNumberValue(record.rating),
+            reviewCount: toIntegerValue(record.reviewCount),
             reviewSummary: null,
-            url: item.url || ''
+            url: typeof record.url === 'string' ? record.url : ''
           });
         }
       }
@@ -208,26 +214,28 @@ export class BrowserbaseAdapter implements MCPAdapter {
     }
   }
 
-  private parseListingDetail(content: any, url: string): ListingDetail {
+  private parseListingDetail(content: unknown, url: string): ListingDetail {
+    const record = content && typeof content === 'object' ? (content as Record<string, unknown>) : {};
     const reviews: Review[] = [];
 
     // Parse reviews from extracted content
-    if (content.reviews && Array.isArray(content.reviews)) {
-      for (const review of content.reviews.slice(0, 15)) {
-        reviews.push({
-          author: review.author || 'Anonymous',
-          date: review.date || new Date().toISOString(),
-          text: review.text || ''
-        });
-      }
+    const rawReviews = Array.isArray(record.reviews) ? record.reviews : [];
+    for (const review of rawReviews.slice(0, 15)) {
+      if (!review || typeof review !== 'object') continue;
+      const reviewRecord = review as Record<string, unknown>;
+      reviews.push({
+        author: typeof reviewRecord.author === 'string' ? reviewRecord.author : 'Anonymous',
+        date: typeof reviewRecord.date === 'string' ? reviewRecord.date : new Date().toISOString(),
+        text: typeof reviewRecord.text === 'string' ? reviewRecord.text : ''
+      });
     }
 
     return {
-      title: content.title || '',
-      pricePerNight: content.price ? this.parsePrice(content.price) : 0,
+      title: typeof record.title === 'string' ? record.title : '',
+      pricePerNight: record.price ? this.parsePrice(toStringValue(record.price)) : 0,
       currency: 'USD',
-      rating: content.rating ? parseFloat(content.rating) : null,
-      reviewCount: content.reviewCount ? parseInt(content.reviewCount) : null,
+      rating: toNumberValue(record.rating),
+      reviewCount: toIntegerValue(record.reviewCount),
       reviewSummary: null,
       reviews,
       url
@@ -249,4 +257,28 @@ export class BrowserbaseAdapter implements MCPAdapter {
 
     return results;
   }
+}
+
+function toStringValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return value.toString();
+  return '';
+}
+
+function toNumberValue(value: unknown): number | null {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+
+function toIntegerValue(value: unknown): number | null {
+  if (typeof value === 'number') return Math.trunc(value);
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
 }

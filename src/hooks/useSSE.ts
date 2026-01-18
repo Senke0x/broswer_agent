@@ -6,6 +6,7 @@ interface UseSSEOptions {
   onMessage: (data: string) => void;
   onError?: (error: Error) => void;
   onComplete?: () => void;
+  events?: Record<string, (data: string) => void>;
 }
 
 export function useSSE() {
@@ -19,6 +20,14 @@ export function useSSE() {
 
     const eventSource = new EventSource(url);
     eventSourceRef.current = eventSource;
+    const eventHandlers = options.events || {};
+    const attachedEvents = Object.entries(eventHandlers).map(([event, handler]) => {
+      const listener = (message: MessageEvent) => {
+        handler(message.data);
+      };
+      eventSource.addEventListener(event, listener);
+      return { event, listener };
+    });
 
     eventSource.onmessage = (event) => {
       try {
@@ -35,13 +44,16 @@ export function useSSE() {
       }
     };
 
-    eventSource.onerror = (error) => {
+    eventSource.onerror = () => {
       options.onError?.(new Error('SSE connection error'));
       eventSource.close();
       eventSourceRef.current = null;
     };
 
     return () => {
+      for (const { event, listener } of attachedEvents) {
+        eventSource.removeEventListener(event, listener);
+      }
       eventSource.close();
     };
   }, []);
