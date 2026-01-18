@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { SSEEncoder } from '@/lib/chat/sse-encoder';
 import { planNextAction } from '@/lib/llm/planner';
 import { ChatMessage } from '@/types/chat';
+import { logger } from '@/lib/utils/logger';
 
 export const runtime = 'edge';
 
@@ -22,7 +23,9 @@ export async function GET(request: NextRequest) {
   try {
     history = historyStr ? JSON.parse(historyStr) : [];
   } catch (error) {
-    console.error('Failed to parse history:', error);
+    logger.error('api', 'Failed to parse history', {
+      error: error instanceof Error ? error.message : String(error)
+    });
     // Continue with empty history if parsing fails
   }
 
@@ -32,8 +35,15 @@ export async function GET(request: NextRequest) {
   // Create async generator for streaming response
   async function* generateResponse(): AsyncGenerator<string> {
     try {
-      // Call LLM planner to determine next action
-      const planResult = await planNextAction(userMessage, history);
+      // Call LLM planner with timeout (30 seconds)
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Request timeout')), 30000)
+      );
+
+      const planResult = await Promise.race([
+        planNextAction(userMessage, history),
+        timeoutPromise
+      ]);
 
       if (planResult.action === 'ask_clarification') {
         // Stream clarification question to user
@@ -61,7 +71,9 @@ export async function GET(request: NextRequest) {
         yield planResult.message || 'Sorry, I encountered an error processing your request.';
       }
     } catch (error) {
-      console.error('Error in generateResponse:', error);
+      logger.error('api', 'Error in generateResponse', {
+        error: error instanceof Error ? error.message : String(error)
+      });
       yield 'Sorry, I encountered an error processing your request. Please try again.';
     }
   }
