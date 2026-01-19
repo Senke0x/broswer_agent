@@ -29,8 +29,7 @@ export function InputBar({
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Enter to send, Shift + Enter for new line
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && e.ctrlKey) {
       e.preventDefault();
       handleSend();
     }
@@ -61,6 +60,7 @@ export function InputBar({
           onChange={handleInput}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
+          title="Ctrl+Enter to send"
           disabled={disabled}
           rows={1}
         />

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useChat } from '@/hooks/useChat';
 import type { MCPMode } from '@/types/mcp';
 import { MessageList } from './MessageList';
@@ -26,21 +26,97 @@ export function ChatContainer() {
     screenshot,
   } = useChat();
 
-  const [showPreview, setShowPreview] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewDismissed, setPreviewDismissed] = useState(false);
+  const prevLoadingRef = useRef(false);
+  const isPlaywrightActive = Boolean(currentStatus && /playwright/i.test(currentStatus));
+  const previewStatus = currentStatus
+    || (isLoading
+      ? 'Preparing Playwright session...'
+      : (screenshot ? 'Playwright session complete.' : 'No active Playwright session.'));
+  const [hadPlaywrightActivity, setHadPlaywrightActivity] = useState(false);
 
   const handleSuggestionClick = (text: string) => {
     sendMessage(text);
   };
 
+  const today = new Date();
+  const formatDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const addDays = (base: Date, days: number) => {
+    const next = new Date(base);
+    next.setDate(next.getDate() + days);
+    return next;
+  };
+
   const suggestions = [
-    { title: "Find listings", text: "Find a 2-bedroom apartment in Tokyo for next weekend." },
-    { title: "Compare prices", text: "Compare Airbnb prices in Paris vs London for July." },
-    { title: "Check availability", text: "Check for available beachfront villas in Bali." },
-    { title: "Budget search", text: "Find listings under $100/night in New York City." }
+    {
+      title: "Find listings",
+      text: `Find a 2-bedroom apartment in Tokyo. Check-in ${formatDate(addDays(today, 14))}, check-out ${formatDate(addDays(today, 17))}, 2 guests, budget USD 140-220 per night.`
+    },
+    {
+      title: "City stay",
+      text: `Find a stylish apartment in Paris. Check-in ${formatDate(addDays(today, 21))}, check-out ${formatDate(addDays(today, 25))}, 2 guests, budget EUR 180-280 per night.`
+    },
+    {
+      title: "Beachfront",
+      text: `Find beachfront villas in Bali. Check-in ${formatDate(addDays(today, 28))}, check-out ${formatDate(addDays(today, 32))}, 4 guests, budget USD 220-350 per night.`
+    },
+    {
+      title: "Budget search",
+      text: `Find listings in New York City. Check-in ${formatDate(addDays(today, 18))}, check-out ${formatDate(addDays(today, 21))}, 2 guests, budget USD 80-120 per night.`
+    }
   ];
 
+  useEffect(() => {
+    const wasLoading = prevLoadingRef.current;
+    if (!wasLoading && isLoading) {
+      setPreviewDismissed(false);
+      setHadPlaywrightActivity(false);
+    }
+    if (wasLoading && !isLoading && hadPlaywrightActivity) {
+      setIsPreviewOpen(false);
+      setPreviewDismissed(true);
+    }
+    prevLoadingRef.current = isLoading;
+  }, [isLoading, hadPlaywrightActivity]);
+
+  useEffect(() => {
+    if (screenshot || isPlaywrightActive) {
+      setHadPlaywrightActivity(true);
+    }
+  }, [screenshot, isPlaywrightActive]);
+
+  useEffect(() => {
+    if (previewDismissed) return;
+    if (screenshot || isPlaywrightActive) {
+      setIsPreviewOpen(true);
+    }
+  }, [previewDismissed, screenshot, isPlaywrightActive]);
+
+  useEffect(() => {
+    if (!isPreviewOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsPreviewOpen(false);
+        setPreviewDismissed(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPreviewOpen]);
+
+  const handleClosePreview = () => {
+    setIsPreviewOpen(false);
+    setPreviewDismissed(true);
+  };
+
   return (
-    <div className={`${styles.chatContainer} ${showPreview ? styles.hasPreview : ''}`}>
+    <div className={styles.chatContainer}>
       <header className={styles.header}>
         <div className={styles.headerRow}>
           <div className={styles.headerTitle}>
@@ -58,19 +134,10 @@ export function ChatContainer() {
                {isFetchingModels ? 'Fetching...' : 'Fetch Models'}
             </button>
 
-             {mcpMode === 'playwright' && (
-               <button
-                className={styles.fetchButton}
-                onClick={() => setShowPreview(!showPreview)}
-                title="Toggle Browser Preview"
-              >
-                {showPreview ? 'Hide Browser' : 'Show Browser'}
-              </button>
-             )}
-
             <div className={styles.modeControl}>
               <select
                 id="mcp-mode"
+                aria-label="Search mode"
                 className={styles.modeSelect}
                 value={mcpMode}
                 onChange={(event) => setMcpMode(event.target.value as MCPMode)}
@@ -86,6 +153,7 @@ export function ChatContainer() {
             <div className={styles.modelControl}>
               <select
                 id="model-select"
+                aria-label="AI model"
                 className={styles.modeSelect}
                 value={selectedModel}
                 onChange={(event) => setSelectedModel(event.target.value)}
@@ -118,10 +186,15 @@ export function ChatContainer() {
 
               <div className={styles.suggestionGrid}>
                 {suggestions.map((s, i) => (
-                  <div key={i} className={styles.suggestionCard} onClick={() => handleSuggestionClick(s.text)}>
+                  <button
+                    key={i}
+                    type="button"
+                    className={styles.suggestionCard}
+                    onClick={() => handleSuggestionClick(s.text)}
+                  >
                     <div className={styles.suggestionTitle}>{s.title}</div>
                     <div className={styles.suggestionText}>{s.text}</div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -139,37 +212,6 @@ export function ChatContainer() {
         </div>
       </div>
 
-      <div className={styles.previewPanel}>
-        <div className={styles.previewHeader}>
-          <span>Browser Preview</span>
-          <span style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: 'var(--color-border)', borderRadius: '4px' }}>{mcpMode.toUpperCase()}</span>
-        </div>
-        <div className={styles.previewContent}>
-          {screenshot ? (
-            <img
-              src={screenshot.startsWith('data:') ? screenshot : `data:image/png;base64,${screenshot}`}
-              alt="Browser Screenshot"
-              className={styles.screenshot}
-            />
-          ) : (
-            <div className={styles.previewPlaceholder}>
-              {isLoading ? (
-                <>
-                  <div className={styles.loadingPulse} />
-                  <p>Initializing Browser Session...</p>
-                  <p style={{ fontSize: '12px', marginTop: '8px' }}>Capturing screenshots shortly...</p>
-                </>
-              ) : (
-                <>
-                  <p>No Active Session</p>
-                  <p style={{ fontSize: '12px', marginTop: '8px' }}>Send a message to start browsing</p>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
       <div className={styles.inputArea}>
         <div className={styles.inputWrapper}>
           <InputBar
@@ -179,6 +221,66 @@ export function ChatContainer() {
           />
         </div>
       </div>
+
+      {isPreviewOpen && (
+        <div className={styles.previewDialogBackdrop}>
+          <div
+            className={styles.previewDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="browser-preview-title"
+            aria-describedby="browser-preview-status"
+          >
+            <div className={styles.previewHeader}>
+              <div className={styles.previewTitle}>
+                <span id="browser-preview-title">Playwright Live View</span>
+                <span className={isLoading ? styles.previewBadgeLive : styles.previewBadgeIdle}>
+                  {isLoading ? 'LIVE' : 'IDLE'}
+                </span>
+              </div>
+              <span
+                id="browser-preview-status"
+                className={styles.previewStatusText}
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                {previewStatus}
+              </span>
+              <div className={styles.previewActions}>
+                <button type="button" className={styles.previewClose} onClick={handleClosePreview}>
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className={styles.previewContent}>
+              {screenshot ? (
+                <img
+                  src={screenshot.startsWith('data:') ? screenshot : `data:image/png;base64,${screenshot}`}
+                  alt="Playwright Browser Screenshot"
+                  width={1280}
+                  height={800}
+                  className={styles.screenshot}
+                />
+              ) : (
+                <div className={styles.previewPlaceholder}>
+                  {isLoading ? (
+                    <>
+                      <div className={styles.loadingPulse} />
+                      <p>{previewStatus}</p>
+                      <p className={styles.previewSubtext}>Capturing screenshots shortly...</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>No Active Session</p>
+                      <p className={styles.previewSubtext}>Send a message to start browsing.</p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

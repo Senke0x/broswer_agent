@@ -1,5 +1,6 @@
 import { APP_CONFIG } from '@/config/constants';
 import { Listing, SearchContext, SearchParams } from '@/types/listing';
+import { logger } from '@/lib/utils/logger';
 
 export interface PostProcessResult {
   listings: Listing[];
@@ -59,6 +60,21 @@ export function postProcessListings(
         notes.push(
           `Relaxed max budget by ${APP_CONFIG.search.budgetRelaxPercent}% to surface more options.`
         );
+      }
+    }
+
+    if (filtered.length === 0) {
+      logger.warn('api', 'budget_filter_empty', {
+        location: params.location,
+        budgetMin,
+        budgetMax: hasMaxBudget ? budgetMaxValue : null,
+        validCount: valid.length,
+        invalidCount: invalid.length
+      });
+      if (valid.length > 0) {
+        context.budgetRelaxed = true;
+        notes.push('No listings found within budget; showing closest matches instead.');
+        filtered = valid;
       }
     }
 

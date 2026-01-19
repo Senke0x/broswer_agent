@@ -11,7 +11,7 @@ export const ActionStatus = memo(function ActionStatus({ status }: ActionStatusP
   if (!status) return null;
 
   return (
-    <div className={styles.status}>
+    <div className={styles.status} role="status" aria-live="polite" aria-atomic="true">
       <div className={styles.dot} />
       <span className={styles.text}>{status}</span>
     </div>
