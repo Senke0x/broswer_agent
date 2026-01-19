@@ -6,18 +6,18 @@ description, and file path so you can open the source for full instructions.
 
 ### System Skills
 - skill-creator: Guide for creating effective skills.
-  - Path: /Users/chaisenpeng/.codex/skills/.system/skill-creator/SKILL.md
+  - Path: .codex/skills/.system/skill-creator/SKILL.md
 - skill-installer: Install Codex skills into $CODEX_HOME/skills from a curated
   list or a GitHub repo path.
-  - Path: /Users/chaisenpeng/.codex/skills/.system/skill-installer/SKILL.md
+  - Path: .system/skill-installer/SKILL.md
 
 ### Project Skills
 - codex-review: Automated code review using Codex CLI with intelligent fallback to project skills. Use when reviewing code changes, commits, or pull requests.
-  - Path: /Users/chaisenpeng/Document/Github/broswer_agent/.claude/skills/codex-review/SKILL.md
+  - Path: .claude/skills/codex-review/SKILL.md
 - vercel-react-best-practices: React and Next.js performance optimization guidelines from Vercel Engineering. Use when writing, reviewing, or refactoring React/Next.js code to ensure optimal performance patterns.
-  - Path: /Users/chaisenpeng/Document/Github/broswer_agent/.claude/skills/vercel-react-best-practices/SKILL.md
+  - Path: .claude/skills/vercel-react-best-practices/SKILL.md
 - web-design-guidelines: Review UI code for Web Interface Guidelines compliance. Use when asked to review UI, check accessibility, audit design, or check site against best practices.
-  - Path: /Users/chaisenpeng/Document/Github/broswer_agent/.claude/skills/web-design-guidelines/SKILL.md
+  - Path: .claude/skills/web-design-guidelines/SKILL.md
 
 ### Skill Discovery
 - Available skills are listed in project docs and may also appear in a runtime

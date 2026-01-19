@@ -29,12 +29,29 @@ export function ChatContainer() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewDismissed, setPreviewDismissed] = useState(false);
   const prevLoadingRef = useRef(false);
-  const isPlaywrightActive = Boolean(currentStatus && /playwright/i.test(currentStatus));
+  const statusLower = currentStatus?.toLowerCase() ?? '';
+  const isBrowserActive = Boolean(
+    (currentStatus && /(playwright|browserbase)/i.test(currentStatus))
+    || (isLoading && (mcpMode === 'browserbase' || mcpMode === 'playwright' || mcpMode === 'playwright-mcp' || mcpMode === 'both'))
+  );
+  const previewLabel = statusLower.includes('browserbase')
+    ? 'Browserbase'
+    : statusLower.includes('playwright-mcp')
+      ? 'Playwright MCP'
+      : statusLower.includes('playwright')
+        ? 'Playwright'
+        : mcpMode === 'browserbase'
+          ? 'Browserbase'
+          : mcpMode === 'playwright-mcp'
+            ? 'Playwright MCP'
+            : mcpMode === 'playwright'
+              ? 'Playwright'
+              : 'Browser';
   const previewStatus = currentStatus
     || (isLoading
-      ? 'Preparing Playwright session...'
-      : (screenshot ? 'Playwright session complete.' : 'No active Playwright session.'));
-  const [hadPlaywrightActivity, setHadPlaywrightActivity] = useState(false);
+      ? `Preparing ${previewLabel} session...`
+      : (screenshot ? `${previewLabel} session complete.` : 'No active browser session.'));
+  const [hadBrowserActivity, setHadBrowserActivity] = useState(false);
 
   const handleSuggestionClick = (text: string) => {
     sendMessage(text);
@@ -76,27 +93,27 @@ export function ChatContainer() {
     const wasLoading = prevLoadingRef.current;
     if (!wasLoading && isLoading) {
       setPreviewDismissed(false);
-      setHadPlaywrightActivity(false);
+      setHadBrowserActivity(false);
     }
-    if (wasLoading && !isLoading && hadPlaywrightActivity) {
+    if (wasLoading && !isLoading && hadBrowserActivity) {
       setIsPreviewOpen(false);
       setPreviewDismissed(true);
     }
     prevLoadingRef.current = isLoading;
-  }, [isLoading, hadPlaywrightActivity]);
+  }, [isLoading, hadBrowserActivity]);
 
   useEffect(() => {
-    if (screenshot || isPlaywrightActive) {
-      setHadPlaywrightActivity(true);
+    if (screenshot || isBrowserActive) {
+      setHadBrowserActivity(true);
     }
-  }, [screenshot, isPlaywrightActive]);
+  }, [screenshot, isBrowserActive]);
 
   useEffect(() => {
     if (previewDismissed) return;
-    if (screenshot || isPlaywrightActive) {
+    if (screenshot || isBrowserActive) {
       setIsPreviewOpen(true);
     }
-  }, [previewDismissed, screenshot, isPlaywrightActive]);
+  }, [previewDismissed, screenshot, isBrowserActive]);
 
   useEffect(() => {
     if (!isPreviewOpen) return;
@@ -145,6 +162,7 @@ export function ChatContainer() {
                 title="Search Mode"
               >
                 <option value="playwright">Playwright</option>
+                <option value="playwright-mcp">Playwright MCP</option>
                 <option value="browserbase">Browserbase</option>
                 <option value="both">A/B (Both)</option>
               </select>
@@ -233,7 +251,7 @@ export function ChatContainer() {
           >
             <div className={styles.previewHeader}>
               <div className={styles.previewTitle}>
-                <span id="browser-preview-title">Playwright Live View</span>
+                <span id="browser-preview-title">{previewLabel} Live View</span>
                 <span className={isLoading ? styles.previewBadgeLive : styles.previewBadgeIdle}>
                   {isLoading ? 'LIVE' : 'IDLE'}
                 </span>
@@ -256,7 +274,7 @@ export function ChatContainer() {
               {screenshot ? (
                 <img
                   src={screenshot.startsWith('data:') ? screenshot : `data:image/png;base64,${screenshot}`}
-                  alt="Playwright Browser Screenshot"
+                  alt="Browser Screenshot"
                   width={1280}
                   height={800}
                   className={styles.screenshot}

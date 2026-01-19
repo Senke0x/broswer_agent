@@ -18,10 +18,11 @@ This MVP demonstrates an intelligent search agent that:
 - **Clarifying Questions**: Asks follow-up questions when required information is missing
 - **Date Inference**: Handles relative dates ("next weekend") and holidays with confirmation
 
-### Dual MCP Backend Support
+### Multiple MCP Backend Support
 - **Browserbase MCP**: Cloud-hosted browser automation (reliable, scalable)
-- **Playwright MCP**: Local browser automation (fast, no external dependencies)
-- **A/B Evaluation Mode**: Run both backends in parallel and compare results
+- **Playwright (Direct)**: Local Playwright automation (fast, no external dependencies)
+- **Playwright MCP**: Local MCP server using Playwright (HTTP/SSE)
+- **A/B Evaluation Mode**: Run Browserbase + Playwright (direct) in parallel and compare results
 
 ### Intelligent Search & Scraping
 - Automated Airbnb search with filters (location, dates, guests, budget)
@@ -45,7 +46,7 @@ This MVP demonstrates an intelligent search agent that:
 - **Framework**: Next.js 16 with TypeScript (App Router)
 - **Styling**: Vanilla CSS with CSS variables (no Tailwind)
 - **LLM**: OpenAI GPT-4o with function calling
-- **Browser Automation**: MCP SDK with Browserbase and Playwright adapters
+- **Browser Automation**: MCP SDK with Browserbase + Playwright (direct) + Playwright MCP adapters
 - **Validation**: Zod for runtime type checking
 - **Deployment**: Vercel (serverless)
 
@@ -90,9 +91,12 @@ User Input → Chat UI → LLM Planner → MCP Adapter(s) → Airbnb Scraping
 │                       │                                      │
 │  ┌────────────────────┴─────────────────────────────────┐   │
 │  │                 MCP Adapter Layer                     │   │
-│  │  ┌──────────────────┐      ┌──────────────────┐     │   │
-│  │  │ BrowserbaseAdapter│      │PlaywrightAdapter│     │   │
-│  │  └──────────────────┘      └──────────────────┘     │   │
+│  │  ┌──────────────────┐  ┌──────────────────┐         │   │
+│  │  │ BrowserbaseAdapter│  │PlaywrightAdapter│         │   │
+│  │  └──────────────────┘  └──────────────────┘         │   │
+│  │  ┌──────────────────┐                               │   │
+│  │  │PlaywrightMcpAdapter│                              │   │
+│  │  └──────────────────┘                               │   │
 │  └────────────────────┬─────────────────────────────────┘   │
 │                       │                                      │
 │  ┌────────────────────┴─────────────────────────────────┐   │
@@ -130,7 +134,8 @@ src/
 │   │   ├── adapter.ts            # Adapter factory and utilities
 │   │   ├── base.ts               # Base adapter with retry logic
 │   │   ├── browserbase.ts        # Browserbase MCP adapter
-│   │   └── playwright.ts         # Playwright MCP adapter
+│   │   ├── playwright.ts         # Playwright direct adapter
+│   │   └── playwright-mcp.ts     # Playwright MCP adapter
 │   │
 │   ├── llm/                      # LLM integration
 │   │   ├── client.ts             # OpenAI client with lazy init
@@ -176,6 +181,7 @@ src/
 - OpenAI API key (required)
 - Browserbase account (optional, for cloud browser automation)
 - Playwright (optional, for local browser automation)
+- Playwright MCP server (optional, for MCP mode)
 
 ### Installation
 
@@ -197,7 +203,7 @@ src/
 
    Edit `.env.local` and add your API keys (see Environment Variables section below).
 
-4. **Install Playwright browsers** (if using Playwright MCP)
+4. **Install Playwright browsers** (if using Playwright direct or Playwright MCP)
    ```bash
    npx playwright install chromium
    ```
@@ -211,6 +217,12 @@ npm run dev
 ```
 
 The application will be available at `http://localhost:3000`.
+
+If you use `playwright-mcp` mode, start the MCP server in another terminal:
+
+```bash
+npm run mcp:playwright
+```
 
 #### Production Build
 
@@ -234,7 +246,7 @@ OPENAI_API_KEY=sk-your-openai-api-key-here
 
 ### MCP Backend Configuration
 
-Choose one or both MCP backends:
+Choose one or more MCP backends:
 
 #### Option 1: Browserbase (Cloud Browser)
 
@@ -252,11 +264,11 @@ BROWSERBASE_PROJECT_ID=your-browserbase-project-id-here
 **Pros**: Reliable, scalable, no local browser setup
 **Cons**: Requires external service, adds latency
 
-#### Option 2: Playwright (Local Browser)
+#### Option 2: Playwright (Local Browser, Direct)
 
 ```bash
-# Playwright Configuration (Optional)
-PLAYWRIGHT_WS_ENDPOINT=
+# Playwright (Direct) Configuration (Optional)
+PLAYWRIGHT_HEADLESS=true
 ```
 
 **Setup**:
@@ -266,16 +278,36 @@ PLAYWRIGHT_WS_ENDPOINT=
 **Pros**: Fast, no external dependencies, free
 **Cons**: Requires local resources, less reliable for production
 
+#### Option 3: Playwright MCP (Local MCP Server)
+
+```bash
+# Playwright MCP Configuration
+PLAYWRIGHT_MCP_URL=http://127.0.0.1:3001
+PLAYWRIGHT_MCP_HOST=127.0.0.1
+PLAYWRIGHT_MCP_PORT=3001
+PLAYWRIGHT_MCP_BROWSER=chromium
+PLAYWRIGHT_MCP_HEADLESS=true
+PLAYWRIGHT_MCP_NO_SANDBOX=true
+```
+
+**Setup**:
+1. Start the MCP server: `npm run mcp:playwright`
+2. Keep the server running while using the app
+
+**Pros**: Standard MCP transport, works with external MCP clients
+**Cons**: Requires running an MCP server process
+
 #### MCP Mode Selection
 
 ```bash
-# Choose MCP mode: 'playwright' | 'browserbase' | 'both'
+# Choose MCP mode: 'playwright' | 'playwright-mcp' | 'browserbase' | 'both'
 MCP_MODE=playwright
 ```
 
 - `playwright`: Use local Playwright only
+- `playwright-mcp`: Use Playwright MCP server (HTTP/SSE)
 - `browserbase`: Use Browserbase cloud only
-- `both`: Run A/B evaluation with both backends
+- `both`: Run A/B evaluation with Browserbase + Playwright (direct)
 
 ### Optional Configuration Variables
 
@@ -294,8 +326,19 @@ DETAIL_PAGE_CONCURRENCY=3       # Concurrent detail page requests (default: 3)
 # Chat Configuration
 MAX_HISTORY_ROUNDS=10           # Conversation history rounds (default: 10)
 
-# MCP Configuration
-MCP_PORT=3001                   # Playwright MCP server port (default: 3001)
+# Playwright (Direct)
+PLAYWRIGHT_HEADLESS=true        # Show browser window when false
+
+# Playwright MCP
+PLAYWRIGHT_MCP_URL=http://127.0.0.1:3001
+PLAYWRIGHT_MCP_HOST=127.0.0.1
+PLAYWRIGHT_MCP_PORT=3001
+PLAYWRIGHT_MCP_BROWSER=chromium
+PLAYWRIGHT_MCP_HEADLESS=true
+PLAYWRIGHT_MCP_NO_SANDBOX=true
+
+# Legacy/Shared
+MCP_PORT=3001                   # Fallback port for Playwright MCP URL
 MCP_BROWSER=chromium            # Browser type: chromium | firefox | webkit
 ```
 
@@ -386,6 +429,7 @@ npx tsc --noEmit
 - ✅ MCP adapter interface
 - ✅ Browserbase adapter implementation
 - ✅ Playwright adapter implementation
+- ✅ Playwright MCP adapter implementation
 - ✅ Airbnb scraping with configurable selectors
 - ✅ Detail page review extraction (10+ reviews)
 - ✅ Retry and failover logic
@@ -418,7 +462,8 @@ npx tsc --noEmit
 
 #### "MCP connection failed"
 - **Browserbase**: Verify `BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID` are correct
-- **Playwright**: Run `npx playwright install chromium` to install browsers
+- **Playwright (Direct)**: Run `npx playwright install chromium` to install browsers
+- **Playwright MCP**: Start the MCP server (`npm run mcp:playwright`)
 - Check that the selected MCP mode matches your configuration
 
 #### "Rate limit exceeded"
@@ -428,7 +473,7 @@ npx tsc --noEmit
 #### "Scraping blocked / No results"
 - Airbnb may have updated their UI - check `src/config/selectors.json`
 - Increase cooldown time via `COOLDOWN_SECONDS`
-- Try switching MCP backends (Browserbase vs Playwright)
+- Try switching MCP backends (Browserbase vs Playwright vs Playwright MCP)
 
 ## 📚 Key Files Reference
 
@@ -443,6 +488,7 @@ npx tsc --noEmit
 ### MCP Adapters
 - `src/lib/mcp/browserbase.ts` - Browserbase cloud browser adapter
 - `src/lib/mcp/playwright.ts` - Playwright local browser adapter
+- `src/lib/mcp/playwright-mcp.ts` - Playwright MCP adapter
 - `src/lib/mcp/base.ts` - Base adapter with retry logic
 
 ### LLM Integration
@@ -466,6 +512,7 @@ npx tsc --noEmit
 - [OpenAI Platform](https://platform.openai.com/) - Get your OpenAI API key
 - [Browserbase](https://www.browserbase.com/) - Cloud browser automation
 - [Playwright](https://playwright.dev/) - Local browser automation
+- [Playwright MCP](https://github.com/microsoft/playwright-mcp) - MCP server for Playwright
 - [Next.js Documentation](https://nextjs.org/docs) - Next.js framework docs
 - [Model Context Protocol](https://modelcontextprotocol.io/) - MCP specification
 
@@ -475,6 +522,6 @@ This project is for educational and demonstration purposes.
 
 ---
 
-**Built with**: Next.js 16, TypeScript, OpenAI GPT-4o, MCP (Browserbase + Playwright)
+**Built with**: Next.js 16, TypeScript, OpenAI GPT-4o, MCP (Browserbase + Playwright + Playwright MCP)
 
 **Last Updated**: 2026-01-18

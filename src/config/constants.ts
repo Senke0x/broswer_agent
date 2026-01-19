@@ -1,5 +1,9 @@
 // Application configuration constants
 
+const PLAYWRIGHT_MCP_HOST = process.env.PLAYWRIGHT_MCP_HOST || '127.0.0.1';
+const PLAYWRIGHT_MCP_PORT = parseInt(process.env.PLAYWRIGHT_MCP_PORT || process.env.MCP_PORT || '3001', 10);
+const PLAYWRIGHT_MCP_URL = process.env.PLAYWRIGHT_MCP_URL || `http://${PLAYWRIGHT_MCP_HOST}:${PLAYWRIGHT_MCP_PORT}`;
+
 export const APP_CONFIG = {
   // Retry configuration
   retry: {
@@ -39,11 +43,14 @@ export const APP_CONFIG = {
   // MCP configuration
   mcp: {
     timeout: 30000, // 30s
-    defaultMode: (process.env.MCP_MODE || 'playwright') as 'playwright' | 'browserbase' | 'both',
+    defaultMode: (process.env.MCP_MODE || 'playwright') as 'playwright' | 'browserbase' | 'playwright-mcp' | 'both',
     playwright: {
       port: parseInt(process.env.MCP_PORT || '3001'),
       browser: (process.env.MCP_BROWSER || 'chromium') as 'chromium' | 'firefox' | 'webkit',
       headless: true,
+    },
+    playwrightMcp: {
+      url: PLAYWRIGHT_MCP_URL,
     },
     browserbase: {
       apiKey: process.env.BROWSERBASE_API_KEY || '',

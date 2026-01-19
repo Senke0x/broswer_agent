@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
             return;
           }
 
-          const mode = resolveMCPMode(requestedMode);
+          const mode = resolveMCPMode(requestedMode || planResult.mcpMode);
           logger.info('api', 'search_requested', {
             mode,
             location: normalizedParams.location,
@@ -259,7 +259,7 @@ function normalizeSearchParams(params?: Partial<SearchParams>): SearchParams | n
 }
 
 function resolveMCPMode(modeParam?: string | null): MCPMode {
-  if (modeParam === 'browserbase' || modeParam === 'playwright' || modeParam === 'both') {
+  if (modeParam === 'browserbase' || modeParam === 'playwright' || modeParam === 'playwright-mcp' || modeParam === 'both') {
     return modeParam;
   }
   return APP_CONFIG.mcp.defaultMode;
@@ -299,6 +299,10 @@ async function runSearchPipeline(
         );
       }
     }
+  }
+
+  if (mode === 'playwright-mcp') {
+    validateMCPConfig(mode, config);
   }
 
   if (resolvedMode === 'both') {
@@ -360,43 +364,27 @@ async function runSearchPipeline(
   }
 
   const primaryAdapter = createMCPAdapter(resolvedMode, config) as MCPAdapter;
-  let primaryResult = await runAdapterSearch(primaryAdapter, params, onStatus, model, onScreenshot);
-  let finalMode = resolvedMode;
+  const primaryResult = await runAdapterSearch(primaryAdapter, params, onStatus, model, onScreenshot);
 
-  if (shouldFallback(primaryResult)) {
-    const fallbackMode = resolvedMode === 'browserbase' ? 'playwright' : 'browserbase';
-    onStatus?.(`Search failed with ${resolvedMode}, failing over to ${fallbackMode}...`);
-
-    if (fallbackMode === 'browserbase') {
-      try {
-        validateMCPConfig('browserbase', config);
-        const fallbackAdapter = createMCPAdapter('browserbase', config) as MCPAdapter;
-        const fallbackResult = await runAdapterSearch(fallbackAdapter, params, onStatus, model, onScreenshot);
-        if (!shouldFallback(fallbackResult)) {
-          primaryResult = fallbackResult;
-          finalMode = 'browserbase';
-          notes.push('Primary backend failed; fell back to Browserbase.');
-        }
-      } catch (error) {
-        logger.warn('mcp', 'Fallback to Browserbase unavailable', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    } else {
-      const fallbackAdapter = createMCPAdapter('playwright', config) as MCPAdapter;
-      const fallbackResult = await runAdapterSearch(fallbackAdapter, params, onStatus, model, onScreenshot);
-      if (!shouldFallback(fallbackResult)) {
-        primaryResult = fallbackResult;
-        finalMode = 'playwright';
-        notes.push('Primary backend failed; fell back to Playwright.');
-      }
-    }
+  // For playwright-mcp mode, fail immediately if search failed
+  if (resolvedMode === 'playwright-mcp' && primaryResult.listings.length === 0 && primaryResult.errors.length > 0) {
+    const errorMessage = primaryResult.errors.join('; ') || 'Playwright MCP search failed';
+    logger.error('mcp', 'playwright_mcp_search_failed_no_fallback', {
+      errors: primaryResult.errors,
+      totalTime: primaryResult.totalTime,
+    });
+    throw new ApplicationError(
+      ErrorCode.MCP_CONNECTION_FAILED,
+      'Playwright MCP search failed',
+      errorMessage,
+      false
+    );
   }
 
   onStatus?.('Filtering and ranking listings...');
   const processed = postProcessListings(primaryResult.listings, params);
   return {
-    mode: finalMode,
+    mode: resolvedMode,
     listings: processed.listings,
     notes: [...notes, ...processed.notes],
   };
@@ -409,13 +397,12 @@ function toResultsByAdapter(
   const entries = adapters.map((adapter, index) => [adapter.name, results[index]] as const);
   const byName: { playwright?: MCPExecutionResult; browserbase?: MCPExecutionResult } = {};
   for (const [name, result] of entries) {
-    byName[name] = result;
+    // Only handle playwright and browserbase for 'both' mode
+    if (name === 'playwright' || name === 'browserbase') {
+      byName[name] = result;
+    }
   }
   return byName;
-}
-
-function shouldFallback(result: MCPExecutionResult): boolean {
-  return result.listings.length === 0 && result.errors.length > 0;
 }
 
 async function runAdapterSearch(

@@ -4,10 +4,14 @@ This directory contains the MCP adapter implementations for browser automation i
 
 ## Overview
 
-Two MCP servers have been configured:
+Browser automation backends supported:
 
-1. **Context7 MCP** - Provides real-time, version-specific documentation access to AI assistants
-2. **Browserbase MCP** - Cloud-based browser automation for web scraping and interaction
+1. **Browserbase MCP** - Cloud-based browser automation for web scraping and interaction
+2. **Playwright (Direct)** - Local Playwright automation without MCP
+3. **Playwright MCP** - Local MCP server for Playwright automation (HTTP/SSE)
+
+Additional MCP servers (development tooling):
+- **Context7 MCP** - Provides real-time, version-specific documentation access to AI assistants
 
 ## Configuration
 
@@ -18,6 +22,8 @@ The following MCP servers are configured:
 - `context7` - Documentation access via `@upstash/context7-mcp`
 - `browserbase` - Browser automation via `@browserbasehq/mcp-server-browserbase`
 - `filesystem`, `git`, `github` - Standard MCP servers
+
+Playwright MCP runs as a local service and is started separately (see `scripts/start-playwright-mcp.ts`).
 
 ### Environment Variables
 
@@ -30,6 +36,14 @@ BROWSERBASE_PROJECT_ID=your-project-id
 
 # Optional for Context7 (works without but has rate limits)
 CONTEXT7_API_KEY=your-context7-api-key
+
+# Playwright MCP (local server)
+PLAYWRIGHT_MCP_URL=http://127.0.0.1:3001
+PLAYWRIGHT_MCP_HOST=127.0.0.1
+PLAYWRIGHT_MCP_PORT=3001
+PLAYWRIGHT_MCP_BROWSER=chromium
+PLAYWRIGHT_MCP_HEADLESS=true
+PLAYWRIGHT_MCP_NO_SANDBOX=true
 ```
 
 Get your credentials:
@@ -44,7 +58,7 @@ The MCP adapters follow a common interface defined in `@/types/mcp.ts`:
 
 ```typescript
 interface MCPAdapter {
-  readonly name: 'browserbase' | 'playwright';
+  readonly name: 'browserbase' | 'playwright' | 'playwright-mcp';
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   isConnected(): boolean;
@@ -59,7 +73,8 @@ interface MCPAdapter {
 
 - `adapter.ts` - Factory and configuration utilities
 - `browserbase.ts` - Browserbase MCP adapter implementation
-- `playwright.ts` - Playwright MCP adapter (for local testing)
+- `playwright.ts` - Playwright adapter (direct browser control)
+- `playwright-mcp.ts` - Playwright MCP adapter (HTTP/SSE)
 - `example.ts` - Usage examples
 
 ## Usage
@@ -82,6 +97,13 @@ const listings = await adapter.searchAirbnb({
 await adapter.disconnect();
 ```
 
+### Playwright MCP Usage
+
+```typescript
+const config = getDefaultMCPConfig();
+const adapter = createMCPAdapter('playwright-mcp', config);
+```
+
 ### A/B Testing Mode
 
 ```typescript
@@ -98,7 +120,7 @@ const adapters = createMCPAdapter('both', config);
 
 ## Testing
 
-Both MCP servers have been verified to work:
+These MCP servers have been verified to work:
 
 ```bash
 # Test Context7
@@ -106,10 +128,14 @@ npx -y @upstash/context7-mcp@latest --help
 
 # Test Browserbase
 npx -y @browserbasehq/mcp-server-browserbase --help
+
+# Start Playwright MCP locally (HTTP/SSE)
+npm run mcp:playwright
 ```
 
 ## Resources
 
 - [Model Context Protocol Docs](https://modelcontextprotocol.io)
 - [Browserbase MCP Server](https://github.com/browserbase/mcp-server-browserbase)
+- [Playwright MCP Server](https://github.com/microsoft/playwright-mcp)
 - [Context7 Documentation](https://context7.com/docs)

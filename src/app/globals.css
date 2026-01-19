@@ -4,32 +4,32 @@
   --color-primary: #111111; /* Almost Black */
   --color-primary-dark: #000000;
   --color-primary-foreground: #ffffff;
-  
+
   --color-secondary: #f4f4f5; /* Light Gray for bubbles/hover */
   --color-secondary-foreground: #111111;
 
   --color-accent: #2563eb; /* Professional Blue */
-  
+
   /* Backgrounds: Shift from pure white to off-white/gray mix */
-  --color-background: #ffffff; 
+  --color-background: #ffffff;
   --color-surface: #f9fafb; /* Very light gray for headers/sidebars */
   --color-surface-hover: #f3f4f6; /* Gray 100 */
   --color-surface-elevated: #ffffff; /* Cards pop against surface */
-  
+
   --color-border: #e5e7eb; /* Gray 200 */
   --color-border-strong: #d1d5db; /* Gray 300 */
-  
+
   /* Text */
   --color-text: #1f2937; /* Gray 800 - Softer than pure black */
   --color-text-secondary: #6b7280; /* Gray 500 */
   --color-text-muted: #9ca3af; /* Gray 400 */
-  
+
   --color-error: #ef4444;
   --color-success: #10b981;
 
   /* Gradients & Special */
   --gradient-user: linear-gradient(135deg, #1f2937 0%, #111827 100%); /* Dark Gray Gradient */
-  
+
   /* Spacing */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
@@ -41,7 +41,7 @@
   /* Typography */
   --font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: var(--font-geist-mono), monospace;
-  
+
   --font-size-xs: 12px;
   --font-size-sm: 14px;
   --font-size-base: 16px;

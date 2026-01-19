@@ -9,7 +9,7 @@ This file provides context and instructions for Claude Code when working on this
 ### Key Features
 - Chat UI for natural language search queries
 - LLM-powered slot filling and intent parsing (OpenAI GPT-4/4o)
-- Dual MCP backends: Browserbase (cloud) and Playwright (local)
+- MCP backends: Browserbase (cloud), Playwright (direct), Playwright MCP (server)
 - A/B evaluation mode for comparing both backends
 - Top 10 listings with review summaries
 
@@ -18,7 +18,7 @@ This file provides context and instructions for Claude Code when working on this
 - **Framework**: Next.js with TypeScript (App Router)
 - **Styling**: Vanilla CSS (no Tailwind unless requested)
 - **LLM**: OpenAI GPT-4/4o with function calling
-- **Browser Automation**: MCP (Browserbase + Playwright)
+- **Browser Automation**: MCP (Browserbase + Playwright + Playwright MCP)
 - **Deployment**: Vercel (serverless)
 
 ## Project Structure
@@ -33,7 +33,7 @@ src/
 │   ├── Chat/               # Chat UI components
 │   └── ui/                 # Shared components
 ├── lib/
-│   ├── mcp/                # MCP adapters (browserbase.ts, playwright.ts)
+│   ├── mcp/                # MCP adapters (browserbase.ts, playwright.ts, playwright-mcp.ts)
 │   ├── llm/                # LLM planner, summarizer, schemas
 │   ├── scraper/            # Selectors and extraction logic
 │   └── evaluator.ts        # A/B comparison
@@ -84,7 +84,11 @@ Create `.env.local` with:
 ```
 OPENAI_API_KEY=sk-...
 BROWSERBASE_API_KEY=...           # Optional, for Browserbase MCP
-PLAYWRIGHT_WS_ENDPOINT=...        # Optional, for remote Playwright
+BROWSERBASE_PROJECT_ID=...        # Optional, for Browserbase MCP
+PLAYWRIGHT_HEADLESS=true          # Optional, for direct Playwright
+PLAYWRIGHT_MCP_URL=...            # Optional, for Playwright MCP
+PLAYWRIGHT_MCP_HOST=...           # Optional, for Playwright MCP
+PLAYWRIGHT_MCP_PORT=...           # Optional, for Playwright MCP
 ```
 
 ## Code Style Guidelines
@@ -111,10 +115,15 @@ PLAYWRIGHT_WS_ENDPOINT=...        # Optional, for remote Playwright
 
 ## MCP Integration Notes
 
-### Playwright Adapter
+### Playwright Adapter (Direct)
 - Runs locally on server
 - Requires Playwright installed (`npx playwright install`)
 - Use `browser.newContext()` for isolation
+
+### Playwright MCP Adapter
+- Runs against external Playwright MCP server (HTTP/SSE)
+- Start server via `npm run mcp:playwright` or `npx @playwright/mcp@latest --port 3001`
+- Configure `PLAYWRIGHT_MCP_URL` (default `http://127.0.0.1:3001`)
 
 ### Browserbase Adapter
 - Cloud-hosted browser

@@ -8,7 +8,7 @@ executes browser automation via MCP, and returns a ranked list summary.
 - Chat UI that collects missing inputs (location + dates required).
 - Use LLM (OpenAI GPT-4/4o) to parse intent, ask clarifying questions, and
   decompose into MCP actions.
-- Support two MCP backends: Browserbase MCP and Playwright MCP.
+- Support three MCP backends: Browserbase MCP, Playwright (direct), and Playwright MCP.
 - Provide A/B evaluation mode comparing both MCP outputs.
 - No auth, no persistence, deployed on Vercel.
 
@@ -34,7 +34,7 @@ executes browser automation via MCP, and returns a ranked list summary.
 2. Agent extracts location and dates. If missing or relative/holiday, ask
    targeted questions to confirm explicit month/day.
 3. Agent builds a search plan and selects MCP mode:
-   - playwright (local), browserbase (cloud), or both (eval).
+   - playwright (direct), playwright-mcp (server), browserbase (cloud), or both (eval).
 4. MCP runs search and extracts candidate listings.
 5. Agent opens listing detail pages to extract >= 10 reviews per listing
    (or all if fewer) and summarizes them.
@@ -79,7 +79,7 @@ server logs for now (no persistence).
   - assistant questions
   - user replies
   - search results cards
-- MCP mode selector (Playwright / Browserbase / A/B evaluation).
+- MCP mode selector (Playwright / Playwright MCP / Browserbase / A/B evaluation).
 
 ### Backend (T3 / tRPC or API Routes)
 - Chat orchestration endpoint (e.g., `/api/chat` or tRPC `chat.run`).
@@ -87,7 +87,7 @@ server logs for now (no persistence).
   - Extract slots and determine next action.
   - Output a structured plan with tool calls.
 - MCP adapters:
-  - `BrowserbaseAdapter` and `PlaywrightAdapter`.
+  - `BrowserbaseAdapter`, `PlaywrightAdapter`, and `PlaywrightMcpAdapter`.
   - Common interface: `searchAirbnb(params) -> Listing[]`.
 - Evaluator:
   - Optionally run both adapters in parallel.
@@ -104,12 +104,44 @@ server logs for now (no persistence).
   - `summarizeListings`
 
 ### MCP Integration
-- Browserbase MCP:
-  - Cloud-hosted browser.
-  - Requires API key in env.
-- Playwright MCP:
-  - Local browser on the server.
-  - Requires Playwright installed and MCP server running.
+
+#### Browserbase MCP - Dual Mode Support (NEW)
+
+The Browserbase adapter now supports two modes:
+
+**Cloud Mode (Default)**
+- Uses `@browserbasehq/mcp-server-browserbase` MCP server
+- Requires `BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID`
+- Hosted browser infrastructure with CAPTCHA solving
+- Communication via StdioClientTransport
+
+**Local Mode (NEW - Stagehand SDK v3)**
+- Uses `@browserbasehq/stagehand` SDK directly to control local Chrome
+- Set `BROWSERBASE_MODE=local` to enable
+- Automatic Chrome launch with customizable options
+- Full feature parity: screenshots, visual feedback, headless toggle
+- Uses Chrome DevTools Protocol (CDP) directly, no Playwright dependency
+
+```typescript
+// Mode selection in config
+interface BrowserbaseConfig {
+  mode: 'cloud' | 'local';      // NEW: mode selection
+  // Cloud mode config
+  apiKey: string;
+  projectId: string;
+  timeout: number;
+  // Local mode config
+  localOptions?: {              // NEW: local mode options
+    headless: boolean;
+    executablePath?: string;    // Custom Chrome path
+    userDataDir?: string;       // Chrome profile directory
+  };
+}
+```
+
+#### Playwright MCP
+- Local browser on the server.
+- Requires Playwright installed and MCP server running.
 
 ### Data Flow (High-level)
 User -> Chat UI -> LLM Planner -> MCP Adapter(s) -> Extract Listings ->
@@ -154,7 +186,11 @@ Listing:
 - Vercel for Next.js app.
 - Environment variables:
   - OPENAI_API_KEY
-  - BROWSERBASE_API_KEY (if using Browserbase)
+  - BROWSERBASE_API_KEY (if using Browserbase cloud mode)
+  - BROWSERBASE_PROJECT_ID (if using Browserbase cloud mode)
+  - BROWSERBASE_MODE=local|cloud (default: cloud)
+  - STAGEHAND_HEADLESS=true|false (local mode only, default: true)
+  - CHROME_EXECUTABLE_PATH (local mode only, optional)
   - MCP endpoints/ports for Playwright
 
 ## Open Questions & Clarifications Needed ✅ CONFIRMED
@@ -209,7 +245,7 @@ interface ChatMessage {
   metadata?: {
     toolCalls?: ToolCall[];
     searchResults?: Listing[];
-    mcpMode?: 'playwright' | 'browserbase' | 'both';
+    mcpMode?: 'playwright' | 'playwright-mcp' | 'browserbase' | 'both';
   };
 }
 
@@ -223,7 +259,7 @@ interface ToolCall {
 ### MCP Adapter Interface
 ```typescript
 interface MCPAdapter {
-  name: 'browserbase' | 'playwright';
+  name: 'browserbase' | 'playwright' | 'playwright-mcp';
 
   connect(): Promise<void>;
   disconnect(): Promise<void>;
@@ -238,13 +274,26 @@ interface MCPAdapter {
 
 interface MCPConfig {
   browserbase: {
+    mode: 'cloud' | 'local';      // NEW: mode selection
+    // Cloud mode config
     apiKey: string;
-    endpoint: string;
+    projectId: string;
     timeout: number; // default 30000ms
+    // Local mode config
+    localOptions?: {              // NEW: local mode options
+      headless: boolean;
+      executablePath?: string;    // Custom Chrome path
+      userDataDir?: string;       // Chrome profile directory
+    };
   };
   playwright: {
-    wsEndpoint?: string;
-    launchOptions?: LaunchOptions;
+    port: number;                 // default 3001
+    browser: 'chromium' | 'firefox' | 'webkit';
+    headless: boolean;
+    timeout: number; // default 30000ms
+  };
+  playwrightMcp: {
+    url: string;
     timeout: number; // default 30000ms
   };
 }
@@ -536,18 +585,67 @@ interface EvalResult {
 - [x] Rate limiting (10 req/min)
 - [ ] Deploy to Vercel
 
+#### Phase 6: Stagehand Local Chrome Integration (In Progress - 2026-01-19)
+
+**Goal**: Modify BrowserbaseAdapter to support dual modes (cloud + local) using Stagehand SDK v3
+
+**Completed**:
+- [x] Install `@browserbasehq/stagehand` v3 dependency
+- [x] Update type definitions in `src/types/mcp.ts`:
+  - Added `mode: 'cloud' | 'local'` to BrowserbaseConfig
+  - Added `localOptions` with headless, executablePath, userDataDir
+- [x] Refactor `src/lib/mcp/browserbase.ts` (partial):
+  - Added Stagehand SDK imports
+  - Updated BrowserbaseConfig interface
+  - Added dual-mode class properties (stagehand, page, screenshotCallback)
+  - Implemented `connect()` with mode routing
+  - Implemented `connectLocal()` using Stagehand SDK
+  - Implemented `connectCloud()` (existing MCP server approach)
+  - Implemented `injectVisualFeedback()` for local mode
+  - Updated `disconnect()` for dual-mode support
+
+**In Progress**:
+- [ ] Complete `src/lib/mcp/browserbase.ts` refactoring:
+  - Implement `searchAirbnb()` dual-mode routing
+  - Implement `searchAirbnbLocal()` using Stagehand page.goto() and page.extract()
+  - Implement `healthCheck()` dual-mode support
+  - Implement `takeScreenshot()` for both modes
+  - Implement `setScreenshotCallback()` method
+  - Implement `getListingDetails()` dual-mode routing
+  - Implement `getListingDetailsLocal()` using Stagehand
+
+**Pending**:
+- [ ] Update `src/lib/mcp/adapter.ts` factory function:
+  - Add BROWSERBASE_MODE environment variable support
+  - Add STAGEHAND_HEADLESS environment variable support
+  - Add CHROME_EXECUTABLE_PATH environment variable support
+- [ ] Create `.env.example` with new variables
+- [ ] Testing:
+  - Test local mode with headless=false
+  - Test screenshot callbacks
+  - Test A/B evaluation with all three backends
+- [ ] Documentation:
+  - Update DESIGN.md with usage examples
+  - Update CLAUDE.md with Stagehand integration notes
+
 ### 📋 Next Steps
 
 1. ✅ ~~Complete Phase 1: Foundation~~ (DONE)
 2. ✅ ~~Complete Phase 2: LLM Integration~~ (DONE)
 3. ✅ ~~Complete Phase 3: MCP & Scraping~~ (DONE)
 4. ✅ ~~Complete Phase 4: Post-processing & Evaluation~~ (DONE)
-5. **Finish Phase 5: Polish**
+5. **Phase 5: Polish** (In Progress)
    - Deploy to Vercel
+6. **Phase 6: Stagehand Local Chrome Integration** (In Progress)
+   - Complete browserbase.ts refactoring (searchAirbnb, healthCheck, screenshots, getListingDetails)
+   - Update adapter factory with environment variable support
+   - Create .env.example with new variables
+   - Testing and validation
 
 ### 📦 MCP Packages Confirmed
 
-- **Browserbase**: `@browserbasehq/mcp-server-browserbase` (latest)
+- **Browserbase Cloud Mode**: `@browserbasehq/mcp-server-browserbase` (latest)
+- **Browserbase Local Mode**: `@browserbasehq/stagehand` v3 (NEW)
 - **Playwright**: `@playwright/mcp@latest`
 - **MCP Directory**: `mcp-server/` (manual startup)
 
@@ -563,3 +661,164 @@ interface EvalResult {
 | Cooldown | 30s |
 | Rate Limit | 10 req/min |
 | Mobile Support | No |
+| Browserbase Mode | cloud (default) or local |
+| Stagehand Headless | true (default) |
+
+---
+
+## Stagehand Local Chrome Integration Architecture (2026-01-19)
+
+### Overview
+
+This section documents the architecture design for integrating Stagehand SDK v3 into the BrowserbaseAdapter to support local Chrome automation alongside the existing cloud-based MCP server approach.
+
+### Design Goals
+
+1. **Backward Compatibility**: Existing cloud mode users should be unaffected
+2. **Feature Parity**: Local mode should support all features (screenshots, visual feedback, A/B eval)
+3. **Flexibility**: Easy mode switching via environment variable
+4. **Modern Stack**: Use Stagehand v3 with CDP (no Playwright dependency)
+5. **Maintainability**: Single adapter handles both modes with clear separation
+
+### Dual-Mode Architecture
+
+```
+BrowserbaseAdapter
+├── mode: 'cloud' | 'local'
+│
+├── Cloud Mode (existing)
+│   ├── Uses MCP SDK (StdioClientTransport)
+│   ├── Spawns @browserbasehq/mcp-server-browserbase
+│   └── Calls tools: browserbase_stagehand_navigate, browserbase_stagehand_extract
+│
+└── Local Mode (new)
+    ├── Uses Stagehand SDK v3 directly
+    ├── Manages Chrome lifecycle automatically
+    └── Uses page.goto(), page.extract() with natural language
+```
+
+### Class Structure
+
+```typescript
+export class BrowserbaseAdapter implements MCPAdapter {
+  readonly name = 'browserbase' as const;
+  private mode: 'cloud' | 'local';
+
+  // Cloud mode (existing)
+  private client: Client | null = null;
+  private transport: StdioClientTransport | null = null;
+
+  // Local mode (new)
+  private stagehand: Stagehand | null = null;
+  private page: any = null; // Stagehand page instance
+
+  private config: BrowserbaseConfig;
+  private connected = false;
+  private screenshotCallback?: (base64: string) => void;
+
+  constructor(config: BrowserbaseConfig) {
+    this.config = config;
+    this.mode = config.mode || 'cloud';
+  }
+}
+```
+
+### Method Routing Pattern
+
+Each public method routes to the appropriate implementation based on mode:
+
+```typescript
+async searchAirbnb(params: SearchParams): Promise<Listing[]> {
+  if (this.mode === 'local') {
+    return this.searchAirbnbLocal(params);
+  }
+  return this.searchAirbnbCloud(params);
+}
+```
+
+### Key Implementation Details
+
+#### Connection Methods
+
+| Method | Cloud Mode | Local Mode |
+|--------|------------|------------|
+| `connect()` | Spawns MCP server via npx | Initializes Stagehand SDK |
+| `disconnect()` | Closes MCP client | Closes Stagehand browser |
+| `isConnected()` | Returns `this.connected` | Returns `this.connected` |
+| `healthCheck()` | Lists MCP tools | Checks page/stagehand state |
+
+#### Search Methods
+
+| Method | Cloud Mode | Local Mode |
+|--------|------------|------------|
+| `searchAirbnb()` | Calls MCP `browserbase_stagehand_navigate` + `browserbase_stagehand_extract` | Uses `page.goto()` + `page.extract()` |
+| `getListingDetails()` | Calls MCP tools for detail page | Uses `page.goto()` + `page.extract()` |
+
+#### Screenshot & Visual Feedback
+
+| Feature | Cloud Mode | Local Mode |
+|---------|------------|------------|
+| Screenshot | Calls `browserbase_screenshot` MCP tool | Uses `page.screenshot()` buffer |
+| Visual Feedback | N/A (handled by cloud) | Injects CSS/JS via `page.evaluate()` |
+| Cursor Overlay | N/A | Red dot following mouse |
+| Focus Highlight | N/A | Blue outline on focused elements |
+
+### Environment Variables
+
+```bash
+# Mode selection (default: cloud)
+BROWSERBASE_MODE=local
+
+# Cloud mode (existing)
+BROWSERBASE_API_KEY=your-api-key
+BROWSERBASE_PROJECT_ID=your-project-id
+
+# Local mode (new)
+STAGEHAND_HEADLESS=false
+CHROME_EXECUTABLE_PATH=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+```
+
+### Stagehand v3 Key Features
+
+- **No Playwright Dependency**: Uses Chrome DevTools Protocol (CDP) directly
+- **Natural Language Extraction**: `page.extract({ instruction: '...' })`
+- **Automatic Chrome Management**: Handles launch/close automatically
+- **Built-in Wait Logic**: Smart waiting for page loads and elements
+
+### Files Modified
+
+| File | Status | Changes |
+|------|--------|---------|
+| `src/lib/mcp/browserbase.ts` | ✅ Partial | Dual-mode connect/disconnect, visual feedback |
+| `src/types/mcp.ts` | ✅ Complete | Added mode and localOptions |
+| `src/lib/mcp/adapter.ts` | ⏳ Pending | Factory function with env vars |
+| `package.json` | ✅ Complete | Added @browserbasehq/stagehand |
+| `.env.example` | ⏳ Pending | New environment variables |
+
+### Remaining Implementation Tasks
+
+1. **browserbase.ts** (Priority: High)
+   - [ ] `searchAirbnb()` - Add mode routing
+   - [ ] `searchAirbnbLocal()` - Implement with Stagehand
+   - [ ] `healthCheck()` - Add local mode check
+   - [ ] `takeScreenshot()` - Implement for both modes
+   - [ ] `setScreenshotCallback()` - Add callback setter
+   - [ ] `getListingDetails()` - Add mode routing
+   - [ ] `getListingDetailsLocal()` - Implement with Stagehand
+
+2. **adapter.ts** (Priority: Medium)
+   - [ ] Update `getDefaultMCPConfig()` with env var support
+   - [ ] Add mode detection from BROWSERBASE_MODE
+
+3. **Testing** (Priority: High)
+   - [ ] Test local mode Chrome launch
+   - [ ] Test screenshot callbacks
+   - [ ] Test A/B evaluation with Playwright vs Browserbase-local
+   - [ ] Test headless vs headed modes
+
+### Migration Notes
+
+- Default mode is `cloud` for backward compatibility
+- Users opt-in to local mode via `BROWSERBASE_MODE=local`
+- Cloud mode requires API key; local mode does not
+- Local mode is server-only (cannot run in browser)

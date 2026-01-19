@@ -5,7 +5,7 @@ import { SearchParams, Listing, ListingDetail } from '@/types/listing';
 import { logger } from '@/lib/utils/logger';
 
 export abstract class BaseMCPAdapter implements MCPAdapter {
-  abstract readonly name: 'browserbase' | 'playwright';
+  abstract readonly name: 'browserbase' | 'playwright' | 'playwright-mcp';
   protected connected: boolean = false;
   protected timeout: number;
 

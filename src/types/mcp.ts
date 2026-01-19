@@ -2,10 +2,10 @@
 
 import { SearchParams, Listing, ListingDetail } from './listing';
 
-export type MCPMode = 'playwright' | 'browserbase' | 'both';
+export type MCPMode = 'playwright' | 'browserbase' | 'playwright-mcp' | 'both';
 
 export interface MCPAdapter {
-  readonly name: 'browserbase' | 'playwright';
+  readonly name: 'browserbase' | 'playwright' | 'playwright-mcp';
 
   // Connection management
   connect(): Promise<void>;
@@ -31,14 +31,26 @@ export interface MCPAdapter {
 
 export interface MCPConfig {
   browserbase: {
+    mode: 'cloud' | 'local'; // NEW: mode selection
+    // Cloud mode config
     apiKey: string;
     projectId: string;
     timeout: number; // default 30000ms
+    // Local mode config
+    localOptions?: {
+      headless: boolean;
+      executablePath?: string; // Custom Chrome path
+      userDataDir?: string; // Chrome profile directory
+    };
   };
   playwright: {
     port: number; // default 3001
     browser: 'chromium' | 'firefox' | 'webkit';
     headless: boolean;
+    timeout: number; // default 30000ms
+  };
+  playwrightMcp: {
+    url: string;
     timeout: number; // default 30000ms
   };
 }
@@ -62,11 +74,32 @@ export interface BrowserbaseMCPTools {
 
 // Playwright MCP Tools
 export interface PlaywrightMCPTools {
+  browser_navigate: {
+    url: string;
+  };
   browser_run_code: {
-    code: string; // JavaScript code to run
+    code: string; // Playwright code snippet
+  };
+  browser_evaluate: {
+    function: string;
+    element?: string;
+    ref?: string;
+  };
+  browser_wait_for: {
+    time?: number;
+    text?: string;
+    textGone?: string;
+  };
+  browser_take_screenshot: {
+    type?: 'png' | 'jpeg';
+    fullPage?: boolean;
+    element?: string;
+    ref?: string;
   };
   browser_snapshot: Record<string, never>;
-  browser_console_messages: Record<string, never>;
+  browser_console_messages: {
+    level?: string;
+  };
   browser_network_requests: Record<string, never>;
 }
 

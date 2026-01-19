@@ -162,7 +162,7 @@ export class PlaywrightAdapter implements MCPAdapter {
       const listings = await this.controller.evaluate(() => {
         const cards = Array.from(document.querySelectorAll('[data-testid="card-container"]')).slice(0, 10);
         return cards.map(card => {
-          const title = card.querySelector('[data-testid="listing-card-title"]')?.textContent?.trim() || 
+          const title = card.querySelector('[data-testid="listing-card-title"]')?.textContent?.trim() ||
                         card.querySelector('[id^="title_"]')?.textContent?.trim() || '';
 
           const price = card.querySelector('[data-testid="price-availability-row"]')?.textContent?.trim() ||
@@ -188,66 +188,6 @@ export class PlaywrightAdapter implements MCPAdapter {
         });
       });
 
-      const listingStats = Array.isArray(listings)
-        ? listings.reduce(
-            (acc, item) => {
-              const record = item as Record<string, string>;
-              const priceText = record.price || '';
-              const hasPrice = Boolean(priceText && /\d/.test(priceText));
-              const hasImage = Boolean(record.imageUrl);
-              acc.total += 1;
-              if (hasPrice) acc.withPrice += 1;
-              if (hasImage) acc.withImage += 1;
-              if (!acc.samplePrice && priceText) acc.samplePrice = priceText;
-              if (!acc.sampleTitle && record.title) acc.sampleTitle = record.title;
-              return acc;
-            },
-            {
-              total: 0,
-              withPrice: 0,
-              withImage: 0,
-              samplePrice: '',
-              sampleTitle: ''
-            }
-          )
-        : { total: 0, withPrice: 0, withImage: 0, samplePrice: '', sampleTitle: '' };
-
-      logger.info('mcp', 'playwright_search_extracted', {
-        location: params.location,
-        total: listingStats.total,
-        withPrice: listingStats.withPrice,
-        withImage: listingStats.withImage,
-        samplePrice: listingStats.samplePrice,
-        sampleTitle: listingStats.sampleTitle
-      });
-
-      const antiBotSignals = await this.controller.evaluate(() => {
-        const normalize = (value: string) => value.replace(/\s+/g, ' ').trim();
-        const bodyText = document.body?.innerText || '';
-        const textSample = normalize(bodyText).slice(0, 8000);
-        const combined = `${document.title} ${textSample}`.toLowerCase();
-        const signals: string[] = [];
-        if (combined.includes('captcha') || combined.includes('recaptcha')) signals.push('captcha');
-        if (combined.includes('access denied') || combined.includes('request blocked') || combined.includes('forbidden')) {
-          signals.push('access_denied');
-        }
-        if (combined.includes('unusual traffic') || combined.includes('automated') || combined.includes('robot')) {
-          signals.push('bot_check');
-        }
-        if (combined.includes('verify you are') || combined.includes('confirm you are') || combined.includes('human')) {
-          signals.push('verification');
-        }
-        return { signals, pageTitle: document.title || '' };
-      });
-
-      if (antiBotSignals.signals.length > 0) {
-        logger.warn('mcp', 'playwright_search_antibot', {
-          location: params.location,
-          signals: antiBotSignals.signals,
-          pageTitle: antiBotSignals.pageTitle
-        });
-      }
-
       return this.parseListings(listings, 'USD');
 
     } catch (error) {
@@ -272,7 +212,7 @@ export class PlaywrightAdapter implements MCPAdapter {
             url: record.url,
             imageUrl: record.imageUrl || null
         };
-    }).filter(l => l.title);
+    }).filter(l => l.title && l.pricePerNight);
   }
 
   private parsePrice(priceStr: string): number {
@@ -293,12 +233,12 @@ export class PlaywrightAdapter implements MCPAdapter {
   async getListingDetails(url: string): Promise<ListingDetail> {
     // Reuse controller to navigate to detail page
     if (!this.controller) throw new Error('Browser not initialized');
-    
+
     logger.info('mcp', 'playwright_detail_start', { url });
 
     // Random delay before navigation
     await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 2000) + 1000));
-    
+
     await this.controller.goto(url);
 
     const page = await this.controller.getPage();
@@ -308,19 +248,12 @@ export class PlaywrightAdapter implements MCPAdapter {
       } catch {
         // ignore network idle timeout
       }
-      try {
-        await this.controller.waitForSelector('h1', 8000);
-      } catch {
-        // ignore missing title
-      }
       await page.waitForTimeout(800);
       await page.evaluate(() => window.scrollBy(0, 600));
       await page.waitForTimeout(800);
       await page.evaluate(() => window.scrollBy(0, 600));
       await page.waitForTimeout(800);
     }
-
-    await this.controller.captureState();
 
     let details: {
       title: string;
@@ -373,21 +306,12 @@ export class PlaywrightAdapter implements MCPAdapter {
         if (combined.includes('verify you are') || combined.includes('confirm you are') || combined.includes('human')) {
           signals.push('verification');
         }
-        const iframeList = Array.from(document.querySelectorAll('iframe'));
-        const hasCaptchaFrame = iframeList.some((frame) => {
-          const src = (frame.getAttribute('src') || '').toLowerCase();
-          const title = (frame.getAttribute('title') || '').toLowerCase();
-          return src.includes('captcha') || title.includes('captcha');
-        });
-        if (hasCaptchaFrame) signals.push('captcha_frame');
-
-        const inputList = Array.from(document.querySelectorAll('input'));
-        const hasCaptchaInput = inputList.some((input) => {
-          const name = (input.getAttribute('name') || '').toLowerCase();
-          const id = (input.getAttribute('id') || '').toLowerCase();
-          return name.includes('captcha') || id.includes('captcha');
-        });
-        if (hasCaptchaInput) signals.push('captcha_input');
+        if (document.querySelector('iframe[src*="captcha"], iframe[title*="captcha" i]')) {
+          signals.push('captcha_frame');
+        }
+        if (document.querySelector('input[name*="captcha" i], #captcha, [id*="captcha" i]')) {
+          signals.push('captcha_input');
+        }
 
         const priceCandidates = [
           getText('[data-testid="book-it-price"]'),
@@ -400,27 +324,17 @@ export class PlaywrightAdapter implements MCPAdapter {
         const metaPrice = getMeta('og:price:amount') || getMeta('price');
         const metaCurrency = getMeta('og:price:currency') || getMeta('price:currency');
 
-        const ariaLabelList = Array.from(document.querySelectorAll('[aria-label]'));
-        const ariaRating = ariaLabelList.find((el) => {
-          const label = (el.getAttribute('aria-label') || '').toLowerCase();
-          return label.includes('rating');
-        });
-        const ariaReviews = ariaLabelList.find((el) => {
-          const label = (el.getAttribute('aria-label') || '').toLowerCase();
-          return label.includes('reviews');
-        });
-
         const ratingCandidates = [
           getText('[data-testid="review-score"]'),
           getText('[data-testid="listing-rating"]'),
-          normalize(ariaRating?.getAttribute('aria-label') || '')
+          normalize(document.querySelector('[aria-label*="rating" i]')?.getAttribute('aria-label') || '')
         ];
         const ratingText = ratingCandidates.find(Boolean) || '';
         const reviewCountCandidates = [
           getText('[data-testid="review-count"]'),
           getText('[data-testid="reviews-count"]'),
           normalize(document.querySelector('a[href*="#reviews"]')?.textContent || ''),
-          normalize(ariaReviews?.getAttribute('aria-label') || '')
+          normalize(document.querySelector('[aria-label*="reviews" i]')?.getAttribute('aria-label') || '')
         ];
         const reviewCountText = reviewCountCandidates.find(Boolean) || '';
 
@@ -566,7 +480,7 @@ export class PlaywrightAdapter implements MCPAdapter {
     const rating = details.ratingValue ?? (details.ratingText ? this.parseRatingValue(details.ratingText) : null);
     const reviewCount = details.reviewCountValue
       ?? (details.reviewCountText ? this.parseCountValue(details.reviewCountText) : null);
-    const reviews: Review[] = Array.isArray(details.reviews)
+    const reviews = Array.isArray(details.reviews)
       ? details.reviews.filter(review => review.text).slice(0, 10).map(review => ({
           text: review.text,
           author: review.author,
@@ -605,14 +519,12 @@ export class PlaywrightAdapter implements MCPAdapter {
       rating: listingDetail.rating,
       reviewCount: listingDetail.reviewCount,
       imageFound: Boolean(listingDetail.imageUrl),
-      reviews: listingDetail.reviews.length,
-      imageCount: details.imageCount,
-      loadedImageCount: details.loadedImageCount
+      reviews: listingDetail.reviews.length
     });
 
     return listingDetail;
   }
-  
+
   async getMultipleListingDetails(urls: string[]): Promise<ListingDetail[]> {
     // Sequential navigation using the same controller
     const results = [];

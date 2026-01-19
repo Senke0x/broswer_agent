@@ -26,7 +26,7 @@ export interface ChatMessage {
         browserbase?: Listing[];
       };
     };
-    mcpMode?: 'playwright' | 'browserbase' | 'both';
+    mcpMode?: 'playwright' | 'browserbase' | 'playwright-mcp' | 'both';
   };
 }
 

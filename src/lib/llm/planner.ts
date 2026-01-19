@@ -2,6 +2,7 @@
 
 import { ChatMessage, ToolCall } from '@/types/chat';
 import { SearchParams } from '@/types/listing';
+import type { MCPMode } from '@/types/mcp';
 import { collectSearchParamsSchema, searchAirbnbSchema } from './schemas';
 import { getOpenAIClient, DEFAULT_MODEL, ensureOpenAIReady } from './client';
 import OpenAI from 'openai';
@@ -14,12 +15,14 @@ export interface PlanResult {
   message?: string;
   searchParams?: Partial<SearchParams>;
   missingFields?: string[];
+  mcpMode?: MCPMode;
   toolCall?: ToolCall;
 }
 
 type SearchParamsPayload = Partial<SearchParams> & {
   missingFields?: string[];
   clarificationNeeded?: string | null;
+  mcpMode?: MCPMode;
 };
 
 /**
@@ -256,6 +259,7 @@ function handleSearchAirbnb(args: SearchParamsPayload): PlanResult {
       budgetMax: args.budgetMax,
       currency: args.currency || 'USD'
     },
+    mcpMode: args.mcpMode,
     toolCall: {
       name: 'searchAirbnb',
       arguments: args as Record<string, unknown>

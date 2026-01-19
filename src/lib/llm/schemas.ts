@@ -108,7 +108,7 @@ export const searchAirbnbSchema: ChatCompletionTool = {
         },
         mcpMode: {
           type: 'string',
-          enum: ['playwright', 'browserbase', 'both'],
+          enum: ['playwright', 'browserbase', 'playwright-mcp', 'both'],
           description: 'MCP backend to use for search',
           default: 'playwright'
         }
@@ -170,4 +170,3 @@ export const allSchemas = [
   searchAirbnbSchema,
   summarizeListingsSchema
 ];
-
