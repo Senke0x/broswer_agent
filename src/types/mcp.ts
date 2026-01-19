@@ -26,6 +26,7 @@ export interface MCPAdapter {
 
   // Screenshot (optional, Playwright only)
   takeScreenshot?(): Promise<string | null>;
+  setScreenshotCallback?(callback: (base64: string) => void): void;
 }
 
 export interface MCPConfig {

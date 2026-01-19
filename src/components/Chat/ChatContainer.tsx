@@ -58,13 +58,15 @@ export function ChatContainer() {
                {isFetchingModels ? 'Fetching...' : 'Fetch Models'}
             </button>
 
-             <button
-              className={styles.fetchButton}
-              onClick={() => setShowPreview(!showPreview)}
-              title="Toggle Browser Preview"
-            >
-              {showPreview ? 'Hide Browser' : 'Show Browser'}
-            </button>
+             {mcpMode === 'playwright' && (
+               <button
+                className={styles.fetchButton}
+                onClick={() => setShowPreview(!showPreview)}
+                title="Toggle Browser Preview"
+              >
+                {showPreview ? 'Hide Browser' : 'Show Browser'}
+              </button>
+             )}
 
             <div className={styles.modeControl}>
               <select

@@ -451,6 +451,11 @@ async function runAdapterSearch(
   try {
     onStatus?.(`Searching Airbnb on ${adapter.name}...`);
 
+    // Register screenshot callback if supported
+    if (adapter.setScreenshotCallback && onScreenshot) {
+      adapter.setScreenshotCallback(onScreenshot);
+    }
+
     // If adapter supports screenshots and we have a callback, take screenshots
     if (adapter.takeScreenshot && onScreenshot) {
       // Create a wrapper to capture screenshots during search

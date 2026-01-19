@@ -1,7 +1,7 @@
 // Structured logging utilities
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-export type ServiceName = 'chat' | 'mcp' | 'llm' | 'scraper' | 'api';
+export type ServiceName = 'chat' | 'mcp' | 'llm' | 'scraper' | 'api' | 'browser';
 
 export interface LogEntry {
   timestamp: string; // ISO 8601
