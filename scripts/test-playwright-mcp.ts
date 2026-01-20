@@ -310,19 +310,22 @@ class AirbnbAgent {
       }
     };
 
+    const getLocationRef = (snapshotText: string) => this.findRef(
+      snapshotText,
+      /where|destination|location/i,
+      /searchbox|textbox|input/i,
+    ) || this.findRef(snapshotText, /searchbox\s*"where"/i)
+      || this.findRef(snapshotText, 'Where', /searchbox|textbox|input/i);
+
     await wait(1);
     let snapshot = await this.takeSnapshot();
     console.log(`🧭 Step: locate location input`);
     console.log(`🧾 Snapshot length: ${snapshot.length}`);
-    let locationRef = this.findRef(snapshot, /where|destination|location/i, /searchbox|textbox|input/i)
-      || this.findRef(snapshot, /searchbox\s*"where"/i)
-      || this.findRef(snapshot, 'Where', /searchbox|textbox|input/i);
+    let locationRef = getLocationRef(snapshot);
     if (!locationRef) {
       console.warn("⚠️ Location input ref not found, trying to activate 'Where' tab.");
       const whereTabRef = this.findRef(snapshot, /where/i, /tab/i);
       const buttonLines = findLines(snapshot, /button \[ref=/i, 6);
-      const buttonContextE61 = findContextByRef(snapshot, 'e61');
-      const buttonContextE68 = findContextByRef(snapshot, 'e68');
       const headerButtonRefs = buttonLines
         .map(line => this.extractRefFromLine(line))
         .filter((ref): ref is string => Boolean(ref));
@@ -330,9 +333,7 @@ class AirbnbAgent {
         await click('Header search button', ref);
         await wait(1);
         snapshot = await this.takeSnapshot();
-        locationRef = this.findRef(snapshot, /where|destination|location/i, /searchbox|textbox|input/i)
-          || this.findRef(snapshot, /searchbox\s*"where"/i)
-          || this.findRef(snapshot, 'Where', /searchbox|textbox|input/i);
+        locationRef = getLocationRef(snapshot);
         if (locationRef) break;
       }
       if (whereTabRef) {
@@ -340,9 +341,7 @@ class AirbnbAgent {
         await click('Where tab', whereTabRef);
         await wait(1);
         snapshot = await this.takeSnapshot();
-        locationRef = this.findRef(snapshot, /where|destination|location/i, /searchbox|textbox|input/i)
-          || this.findRef(snapshot, /searchbox\s*"where"/i)
-          || this.findRef(snapshot, 'Where', /searchbox|textbox|input/i);
+        locationRef = getLocationRef(snapshot);
       }
     }
     if (!locationRef) {
@@ -355,11 +354,13 @@ class AirbnbAgent {
     await click('Location input', locationRef);
     await type('Location input', locationRef, params.location, false);
     snapshot = await this.takeSnapshot();
-
-    await wait(1);
-    snapshot = await this.takeSnapshot();
     console.log(`🧭 Step: select location suggestion`);
-    const optionRef = this.findRef(snapshot, params.location, /option|listitem|button/i);
+    let optionRef = this.findRef(snapshot, params.location, /option|listitem|button/i);
+    if (!optionRef) {
+      await wait(1);
+      snapshot = await this.takeSnapshot();
+      optionRef = this.findRef(snapshot, params.location, /option|listitem|button/i);
+    }
     if (optionRef) {
       console.log(`✅ Location option ref: ${optionRef}`);
       await click('Location suggestion', optionRef);
@@ -370,12 +371,18 @@ class AirbnbAgent {
       await this.callTool(this.tools.pressKey, { key: 'Enter' });
     }
 
-    await wait(1);
     snapshot = await this.takeSnapshot();
     console.log(`🧭 Step: open date picker`);
-    const whenRef = this.findRef(snapshot, /when/i, /button/i)
+    let whenRef = this.findRef(snapshot, /when/i, /button/i)
       || this.findRef(snapshot, /add dates/i, /button/i)
       || this.findRef(snapshot, /when add dates/i, /button/i);
+    if (!whenRef) {
+      await wait(1);
+      snapshot = await this.takeSnapshot();
+      whenRef = this.findRef(snapshot, /when/i, /button/i)
+        || this.findRef(snapshot, /add dates/i, /button/i)
+        || this.findRef(snapshot, /when add dates/i, /button/i);
+    }
     if (!whenRef) {
       console.warn("❌ 'When' button ref not found.");
       this.logSnapshotPreview('when-button', snapshot);
@@ -383,39 +390,20 @@ class AirbnbAgent {
       return false;
     }
     console.log(`✅ When ref: ${whenRef}`);
-    await click('When', whenRef);
+    // await click('When', whenRef);
     await wait(1);
     snapshot = await this.takeSnapshot();
+    console.log(`🧭 Step: select dates`);
     const calendarLine = findLine(snapshot, /application "Calendar"/i);
     const calendarRef = calendarLine ? this.extractRefFromLine(calendarLine) : null;
     const calendarContext = calendarRef ? findContextByRef(snapshot, calendarRef, 10) : [];
-    const monthHeadings = findLines(snapshot, /heading ".*\d{4}"/i, 8);
-
-    let checkInRef: string | null = null;
-    let checkOutRef: string | null = null;
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
-      await wait(attempt === 1 ? 1 : 2);
-      snapshot = await this.takeSnapshot();
-      console.log(`🧭 Step: select dates (attempt ${attempt})`);
-      const attemptCalendarLine = findLine(snapshot, /application "Calendar"/i);
-      const attemptCalendarRef = attemptCalendarLine ? this.extractRefFromLine(attemptCalendarLine) : null;
-      const attemptCalendarContext = attemptCalendarRef ? findContextByRef(snapshot, attemptCalendarRef, 10) : [];
-      const attemptMonthHeadings = findLines(snapshot, /heading ".*\d{4}"/i, 8);
-      const nextMonthLine = attemptCalendarContext.find(line => /Move forward to change to the next month/i.test(line)) || '';
-      const nextMonthRef = nextMonthLine ? this.extractRefFromLine(nextMonthLine) : null;
-      const listLine = attemptCalendarContext.find(line => /list \[ref=/.test(line)) || '';
-      const listRef = listLine ? this.extractRefFromLine(listLine) : null;
-      const listContext = listRef ? findContextByRef(snapshot, listRef, 120) : [];
-      const dateCandidates = listContext.filter(line => /button "?\d{1,2}"?/i.test(line) || /gridcell/i.test(line) || /aria-label/i.test(line)).slice(0, 50);
-      const juneCandidates = listContext.filter(line => /June 2026|Jun 2026/i.test(line)).slice(0, 20);
-      checkInRef = this.findRef(snapshot, params.checkInLabel, /button/i);
-      checkOutRef = this.findRef(snapshot, params.checkOutLabel, /button/i);
-      if (checkInRef && checkOutRef) break;
-      if (attempt < 3) {
-        console.warn("⚠️ Date refs not found yet, retrying...");
-        await click('When', whenRef);
-      }
+    const listLine = calendarContext.find(line => /list \[ref=/.test(line)) || '';
+    const listRef = listLine ? this.extractRefFromLine(listLine) : null;
+    if (listRef) {
+      findContextByRef(snapshot, listRef, 120);
     }
+    const checkInRef = this.findRef(snapshot, params.checkInLabel, /button/i);
+    const checkOutRef = this.findRef(snapshot, params.checkOutLabel, /button/i);
     if (!checkInRef || !checkOutRef) {
       console.warn("❌ Date refs not found.", { checkInLabel: params.checkInLabel, checkOutLabel: params.checkOutLabel });
       this.logSnapshotPreview('dates', snapshot);
@@ -426,24 +414,24 @@ class AirbnbAgent {
     console.log(`✅ Check-out ref: ${checkOutRef}`);
     await click('Check-in date', checkInRef);
     snapshot = await this.takeSnapshot();
-    const selectedLines = findLines(snapshot, /(selected|start|end|check-?in|check-?out|arrival|departure|range)/i, 20);
-    const checkInLine = findLine(snapshot, new RegExp(params.checkInLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-    const checkOutLine = findLine(snapshot, new RegExp(params.checkOutLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     let checkOutRefAfter = this.findRef(snapshot, params.checkOutLabel, /button/i);
     if (!checkOutRefAfter) {
       checkOutRefAfter = this.findRef(snapshot, /checkout date/i, /button/i);
     }
     const checkOutRefToUse = checkOutRefAfter || checkOutRef;
     await click('Check-out date', checkOutRefToUse);
-    snapshot = await this.takeSnapshot();
-    const checkoutSelectedLine = findLine(snapshot, /(selected check.?out|checkout date selected|selected end date|end date selected|selected range)/i);
-    const checkOutLabelLine = findLine(snapshot, new RegExp(params.checkOutLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-    const rangeLines = findLines(snapshot, /(range|start|end|check-?in|check-?out|arrival|departure)/i, 20);
 
-    await wait(1);
-    snapshot = await this.takeSnapshot();
     console.log(`🧭 Step: open guests picker`);
-    const guestsRef = this.findRef(snapshot, /who|guests/i, /button/i);
+    let guestsRef = this.findRef(snapshot, /who|guests/i, /button/i);
+    if (!guestsRef) {
+      snapshot = await this.takeSnapshot();
+      guestsRef = this.findRef(snapshot, /who|guests/i, /button/i);
+    }
+    if (!guestsRef) {
+      await wait(1);
+      snapshot = await this.takeSnapshot();
+      guestsRef = this.findRef(snapshot, /who|guests/i, /button/i);
+    }
     if (!guestsRef) {
       console.warn("❌ Guests button ref not found.");
       this.logSnapshotPreview('guests', snapshot);
@@ -453,20 +441,26 @@ class AirbnbAgent {
     console.log(`✅ Guests ref: ${guestsRef}`);
     await click('Guests', guestsRef);
 
-    await wait(1);
     snapshot = await this.takeSnapshot();
     console.log(`🧭 Step: increase adults`);
-    const adultsIncreaseRef = (() => {
-      const lines = snapshot.split('\n');
+    const getAdultsIncreaseRef = (snapshotText: string) => {
+      const lines = snapshotText.split('\n');
       const startIndex = lines.findIndex(line => /heading "Adults"/i.test(line));
       if (startIndex < 0) return null;
       const windowLines = lines.slice(startIndex, startIndex + 30);
       const increaseLine = windowLines.find(line => /button "increase value"/i.test(line));
       return increaseLine ? this.extractRefFromLine(increaseLine) : null;
-    })();
-    const increaseRef = adultsIncreaseRef
+    };
+    let increaseRef = getAdultsIncreaseRef(snapshot)
       || this.findRef(snapshot, /increase value/i, /button/i)
       || this.findRef(snapshot, /increase.*adult|add.*adult|adult.*\+/i, /button/i);
+    if (!increaseRef) {
+      await wait(1);
+      snapshot = await this.takeSnapshot();
+      increaseRef = getAdultsIncreaseRef(snapshot)
+        || this.findRef(snapshot, /increase value/i, /button/i)
+        || this.findRef(snapshot, /increase.*adult|add.*adult|adult.*\+/i, /button/i);
+    }
     if (!increaseRef) {
       console.warn("❌ Increase adults ref not found.");
       this.logSnapshotPreview('increase-adults', snapshot);
@@ -485,13 +479,15 @@ class AirbnbAgent {
     for (let i = 0; i < clicksNeeded; i += 1) {
       await click('Increase adults', increaseRef);
     }
-    snapshot = await this.takeSnapshot();
-    const adultsAfter = parseAdultsCount(snapshot);
 
-    await wait(1);
     snapshot = await this.takeSnapshot();
     console.log(`🧭 Step: click search`);
-    const searchRef = this.findRef(snapshot, /search/i, /button/i);
+    let searchRef = this.findRef(snapshot, /search/i, /button/i);
+    if (!searchRef) {
+      await wait(1);
+      snapshot = await this.takeSnapshot();
+      searchRef = this.findRef(snapshot, /search/i, /button/i);
+    }
     if (!searchRef) {
       console.warn("❌ Search button ref not found.");
       this.logSnapshotPreview('search', snapshot);
@@ -501,10 +497,14 @@ class AirbnbAgent {
     console.log(`✅ Search ref: ${searchRef}`);
     await click('Search', searchRef);
 
-    await wait(1);
     snapshot = await this.takeSnapshot();
     console.log(`🧭 Step: dismiss got it`);
-    const gotItRef = this.findRef(snapshot, /got it/i, /button/i);
+    let gotItRef = this.findRef(snapshot, /got it/i, /button/i);
+    if (!gotItRef) {
+      await wait(1);
+      snapshot = await this.takeSnapshot();
+      gotItRef = this.findRef(snapshot, /got it/i, /button/i);
+    }
     if (gotItRef) {
       console.log(`✅ Got it ref: ${gotItRef}`);
       await click('Got it', gotItRef);
