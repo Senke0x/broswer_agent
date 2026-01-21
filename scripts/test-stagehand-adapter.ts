@@ -1,16 +1,16 @@
 #!/usr/bin/env tsx
 /**
- * Debug test using actual BrowserbaseAdapter class (local mode)
+ * Debug test using actual StagehandAdapter class (local mode)
  */
 
 // Register path aliases for tsx
 import 'tsconfig-paths/register';
 
-import { BrowserbaseAdapter } from '../src/lib/mcp/browserbase';
+import { StagehandAdapter } from '../src/lib/mcp/stagehand';
 import { SearchParams } from '../src/types/listing';
 
-async function debugBrowserbaseAdapter() {
-  console.log('=== Debug Actual BrowserbaseAdapter (Local Mode) ===\n');
+async function debugStagehandAdapter() {
+  console.log('=== Debug Actual StagehandAdapter (Local Mode) ===\n');
 
   const params: SearchParams = {
     location: 'Tokyo',
@@ -22,11 +22,8 @@ async function debugBrowserbaseAdapter() {
     budgetMin: null,
   };
 
-  const adapter = new BrowserbaseAdapter({
-    mode: 'local',
+  const adapter = new StagehandAdapter({
     timeout: 30000,
-    apiKey: '', // Not needed for local mode
-    projectId: '', // Not needed for local mode
     localOptions: {
       headless: false,
     },
@@ -111,4 +108,4 @@ async function debugBrowserbaseAdapter() {
   }
 }
 
-debugBrowserbaseAdapter().catch(console.error);
+debugStagehandAdapter().catch(console.error);

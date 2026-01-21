@@ -72,7 +72,8 @@ interface MCPAdapter {
 ### Files
 
 - `adapter.ts` - Factory and configuration utilities
-- `browserbase.ts` - Browserbase MCP adapter implementation
+- `browserbase.ts` - Browserbase MCP adapter implementation (cloud)
+- `stagehand.ts` - Stagehand adapter implementation (local)
 - `playwright.ts` - Playwright adapter (direct browser control)
 - `playwright-mcp.ts` - Playwright MCP adapter (HTTP/SSE)
 - `example.ts` - Usage examples
@@ -108,7 +109,7 @@ const adapter = createMCPAdapter('playwright-mcp', config);
 
 ```typescript
 const adapters = createMCPAdapter('both', config);
-// Returns array of [BrowserbaseAdapter, PlaywrightAdapter]
+// Returns array of [BrowserbaseAdapter (cloud) | StagehandAdapter (local), PlaywrightAdapter]
 ```
 
 ## Next Steps

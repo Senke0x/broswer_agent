@@ -2,6 +2,7 @@
 
 import { MCPAdapter, MCPMode, MCPConfig } from '@/types/mcp';
 import { BrowserbaseAdapter } from './browserbase';
+import { StagehandAdapter } from './stagehand';
 import { PlaywrightAdapter } from './playwright';
 import { PlaywrightMcpAdapter } from './playwright-mcp';
 
@@ -12,16 +13,22 @@ export function createMCPAdapter(
   mode: MCPMode,
   config: MCPConfig
 ): MCPAdapter | MCPAdapter[] {
+  const createBrowserbaseAdapter = () => {
+    return config.browserbase.mode === 'local'
+      ? new StagehandAdapter(config.browserbase)
+      : new BrowserbaseAdapter(config.browserbase);
+  };
+
   switch (mode) {
     case 'browserbase':
-      return new BrowserbaseAdapter(config.browserbase);
+      return createBrowserbaseAdapter();
     case 'playwright':
       return new PlaywrightAdapter(config.playwright);
     case 'playwright-mcp':
       return new PlaywrightMcpAdapter(config.playwrightMcp);
     case 'both':
       return [
-        new BrowserbaseAdapter(config.browserbase),
+        createBrowserbaseAdapter(),
         new PlaywrightAdapter(config.playwright),
       ];
     default:
